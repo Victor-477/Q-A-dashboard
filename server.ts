@@ -3,7 +3,6 @@ import express from "express";
 import path from "path";
 import { randomUUID } from "crypto";
 import { networkInterfaces } from "os";
-import { createServer as createViteServer } from "vite";
 
 interface Question {
   id: string;
@@ -168,6 +167,7 @@ async function startServer() {
 
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",

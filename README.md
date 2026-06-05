@@ -29,6 +29,18 @@ Use commas to allow more than one password.
 
 ## Run Locally
 
+Start the Electron control panel:
+
+```bash
+npm run dashboard
+```
+
+Use the dashboard to configure and start the web application. The available settings are application name, port, host, teacher passwords, working directory, and run mode.
+
+After the application starts, the student and teacher pages continue to work normally through the dashboard links.
+
+To run only the web application without the Electron dashboard:
+
 ```bash
 npm install
 npm run dev

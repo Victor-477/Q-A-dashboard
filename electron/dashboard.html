@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Q&A Dashboard Control</title>
+    <link rel="stylesheet" href="./dashboard.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M12 3 3.5 7.4 12 12l8.5-4.6L12 3Z"></path>
+              <path d="M5 9.8V15c0 2.2 3.1 4 7 4s7-1.8 7-4V9.8"></path>
+            </svg>
+          </div>
+          <div>
+            <strong>Q&A Dashboard</strong>
+            <span>Local application manager</span>
+          </div>
+        </div>
+
+        <div class="header-actions">
+          <span id="headerStatus" class="status-badge stopped">
+            <span id="statusDot" class="status-dot stopped"></span>
+            <span id="statusText">stopped</span>
+          </span>
+          <button id="headerAction" class="button button-primary">Start Application</button>
+        </div>
+      </header>
+
+      <main class="main">
+        <section class="overview-panel">
+          <div class="overview-copy">
+            <p class="eyebrow">Local runner</p>
+            <h1>Manage the Q&A web application</h1>
+            <p>Configure the classroom site, start or stop it locally, and open the student or teacher page when the application is running.</p>
+          </div>
+
+          <div class="overview-status">
+            <div class="status-card">
+              <span>Application status</span>
+              <strong id="runtimeStatus">Stopped</strong>
+            </div>
+            <dl class="metrics">
+              <div>
+                <dt>Process ID</dt>
+                <dd id="runtimePid">-</dd>
+              </div>
+              <div>
+                <dt>Active Port</dt>
+                <dd id="runtimePort">-</dd>
+              </div>
+            </dl>
+          </div>
+        </section>
+
+        <section class="dashboard-grid">
+          <section class="primary-column">
+            <article class="panel settings-panel">
+              <div class="panel-heading">
+                <div>
+                  <p class="eyebrow">Configuration</p>
+                  <h2>Application configuration</h2>
+                </div>
+              </div>
+
+              <form id="settingsForm" class="settings-grid">
+                <label class="field field-full">
+                  <span>Application name</span>
+                  <input id="appName" value="Q&A Dashboard" />
+                </label>
+
+                <label class="field">
+                  <span>Port</span>
+                  <input id="port" type="number" min="1" max="65535" value="3000" placeholder="3000" />
+                </label>
+
+                <label class="field">
+                  <span>Host</span>
+                  <input id="host" value="0.0.0.0" placeholder="0.0.0.0" />
+                </label>
+
+                <label class="field field-full">
+                  <span>Teacher passwords</span>
+                  <input id="teacherPasswords" value="professor123" placeholder="password1,password2" />
+                </label>
+
+                <label class="field field-full">
+                  <span>Working directory</span>
+                  <input id="workingDirectory" placeholder="Project directory" />
+                </label>
+
+                <label class="field field-full">
+                  <span>Run mode</span>
+                  <select id="mode">
+                    <option value="development">Development</option>
+                    <option value="production">Production</option>
+                  </select>
+                </label>
+              </form>
+            </article>
+          </section>
+
+          <aside class="secondary-column">
+            <article class="panel actions-panel">
+              <div class="panel-heading compact">
+                <div>
+                  <p class="eyebrow">Access</p>
+                  <h2>Open web pages</h2>
+                </div>
+              </div>
+              <div class="action-grid">
+                <button id="openHome" class="button button-muted" disabled>Home</button>
+                <button id="openStudent" class="button button-muted" disabled>Student</button>
+                <button id="openTeacher" class="button button-muted" disabled>Teacher</button>
+              </div>
+            </article>
+            <article class="panel logs-panel">
+              <div class="panel-heading compact">
+                <div>
+                  <p class="eyebrow">Runtime</p>
+                  <h2>Activity log</h2>
+                </div>
+              </div>
+              <pre id="logBox" class="log-box">Waiting for application activity...</pre>
+            </article>
+          </aside>
+        </section>
+      </main>
+
+    </div>
+
+    <script src="./dashboard.js"></script>
+  </body>
+</html>
