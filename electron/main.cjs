@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, shell, dialog } = require('electron');
 const { spawn } = require('child_process');
 const { networkInterfaces } = require('os');
 const path = require('path');
@@ -239,6 +239,76 @@ ipcMain.handle('service:stop', () => stopService());
 ipcMain.handle('service:open-url', (_event, url) => {
   if (typeof url === 'string' && /^https?:\/\//.test(url)) {
     shell.openExternal(url);
+  }
+});
+ipcMain.handle('service:download-log', async () => {
+  if (!serviceState.port || serviceState.status !== 'running') {
+    throw new Error('Server is not running');
+  }
+  
+  const defaultPath = path.join(app.getPath('downloads'), `qa-log-${Date.now()}.xlsx`);
+  const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+    title: 'Salvar Log de Perguntas',
+    defaultPath: defaultPath,
+    filters: [
+      { name: 'Planilhas do Excel (*.xlsx)', extensions: ['xlsx'] }
+    ]
+  });
+
+  if (canceled || !filePath) {
+    return { success: false, reason: 'canceled' };
+  }
+
+  try {
+    const url = `http://localhost:${serviceState.port}/api/questions/export`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    
+    const fs = require('fs');
+    await fs.promises.writeFile(filePath, buffer);
+    return { success: true, filePath };
+  } catch (error) {
+    pushLog(`Erro ao baixar log: ${error.message}`, 'error');
+    throw error;
+  }
+});
+ipcMain.handle('service:download-pdf', async () => {
+  if (!serviceState.port || serviceState.status !== 'running') {
+    throw new Error('Server is not running');
+  }
+  
+  const defaultPath = path.join(app.getPath('downloads'), `qa-report-${Date.now()}.pdf`);
+  const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+    title: 'Salvar Relatório em PDF',
+    defaultPath: defaultPath,
+    filters: [
+      { name: 'Documento PDF (*.pdf)', extensions: ['pdf'] }
+    ]
+  });
+
+  if (canceled || !filePath) {
+    return { success: false, reason: 'canceled' };
+  }
+
+  try {
+    const url = `http://localhost:${serviceState.port}/api/questions/export/pdf`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    
+    const fs = require('fs');
+    await fs.promises.writeFile(filePath, buffer);
+    return { success: true, filePath };
+  } catch (error) {
+    pushLog(`Erro ao baixar PDF: ${error.message}`, 'error');
+    throw error;
   }
 });
 

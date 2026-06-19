@@ -21,6 +21,8 @@ const elements = {
   openHome: document.querySelector('#openHome'),
   openStudent: document.querySelector('#openStudent'),
   openTeacher: document.querySelector('#openTeacher'),
+  downloadLog: document.querySelector('#downloadLog'),
+  downloadPdf: document.querySelector('#downloadPdf'),
   headerStatus: document.querySelector('#headerStatus'),
   statusDot: document.querySelector('#statusDot'),
   statusText: document.querySelector('#statusText'),
@@ -89,7 +91,9 @@ function setButtonsForStatus(status) {
   [
     elements.openHome,
     elements.openStudent,
-    elements.openTeacher
+    elements.openTeacher,
+    elements.downloadLog,
+    elements.downloadPdf
   ].forEach(button => {
     button.disabled = !isRunning;
   });
@@ -184,6 +188,34 @@ function bindEvents() {
   elements.openHome.addEventListener('click', () => openRoute(''));
   elements.openStudent.addEventListener('click', () => openRoute('/student'));
   elements.openTeacher.addEventListener('click', () => openRoute('/teacher'));
+  elements.downloadLog.addEventListener('click', async () => {
+    try {
+      elements.downloadLog.disabled = true;
+      const result = await window.qaDashboard.downloadLog();
+      if (result && result.success) {
+        console.log('Log saved to:', result.filePath);
+      }
+    } catch (err) {
+      console.error('Failed to download log:', err);
+    } finally {
+      const isRunning = currentState?.status === 'running';
+      elements.downloadLog.disabled = !isRunning;
+    }
+  });
+  elements.downloadPdf.addEventListener('click', async () => {
+    try {
+      elements.downloadPdf.disabled = true;
+      const result = await window.qaDashboard.downloadPdf();
+      if (result && result.success) {
+        console.log('PDF saved to:', result.filePath);
+      }
+    } catch (err) {
+      console.error('Failed to download PDF:', err);
+    } finally {
+      const isRunning = currentState?.status === 'running';
+      elements.downloadPdf.disabled = !isRunning;
+    }
+  });
 
   Object.values(fields).forEach(input => {
     input.addEventListener('input', () => {
