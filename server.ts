@@ -18,7 +18,7 @@ interface Question {
 }
 
 const questions: Question[] = [];
-let clients: express.Response[] = [];
+const clients = new Set<express.Response>();
 const teacherSessions = new Map<string, { name?: string; createdAt: number }>();
 
 // Edit this list manually to define one or more teacher passwords.
@@ -48,27 +48,54 @@ async function startServer() {
   const preferredPort = getPreferredPort(process.env.PORT);
   const HOST = process.env.HOST ?? "0.0.0.0";
 
-  app.use(express.json());
+  // Increase payload limit for large sessions
+  app.use(express.json({ limit: "1mb" }));
+
+  // Disable ETag generation for better throughput under high concurrency
+  app.set("etag", false);
 
   // Subscribe to real-time events via SSE
   app.get("/api/events", (req, res) => {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no"); // Disable proxy buffering (nginx)
 
-    clients.push(res);
-    
+    // Disable Nagle algorithm for low-latency SSE delivery
+    req.socket.setNoDelay(true);
+    req.socket.setKeepAlive(true, 30000);
+
+    clients.add(res);
+
     // Send initial active questions immediately
     res.write(`event: init\ndata: ${JSON.stringify(questions)}\n\n`);
 
     req.on("close", () => {
-      clients = clients.filter(c => c !== res);
+      clients.delete(res);
     });
   });
 
+  // Heartbeat: send a comment every 30s to keep SSE connections alive
+  setInterval(() => {
+    const beat = `:heartbeat ${Date.now()}\n\n`;
+    for (const client of clients) {
+      try {
+        client.write(beat);
+      } catch {
+        clients.delete(client);
+      }
+    }
+  }, 30_000);
+
   const notifyClients = (event: string, data: any) => {
     const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-    clients.forEach(client => client.write(payload));
+    for (const client of clients) {
+      try {
+        client.write(payload);
+      } catch {
+        clients.delete(client);
+      }
+    }
   };
 
   app.post("/api/teacher/login", (req, res) => {
@@ -135,7 +162,8 @@ async function startServer() {
     res.status(201).json(newQuestion);
   });
 
-  app.post("/api/questions/:id/answer", (req, res) => {
+  // Shared handler for answering and editing answers
+  const handleAnswer = (req: express.Request, res: express.Response) => {
     const teacherSession = getTeacherSession(req);
     if (!teacherSession) {
       res.status(401).json({ error: "Teacher access is required" });
@@ -165,7 +193,13 @@ async function startServer() {
     notifyClients("question_answered", questions[queryIdx]);
 
     res.json(questions[queryIdx]);
-  });
+  };
+
+  // POST to answer a question (new answer)
+  app.post("/api/questions/:id/answer", handleAnswer);
+
+  // PUT to edit an existing answer
+  app.put("/api/questions/:id/answer", handleAnswer);
 
   app.get("/api/questions/export", (req, res) => {
     try {
@@ -341,7 +375,7 @@ async function startServer() {
     });
   }
 
-  const port = await listenWithFallback(app, preferredPort, HOST);
+  const port = await listenWithFallback(app, preferredPort, HOST, clients);
   logAvailableUrls(port);
 }
 
@@ -358,12 +392,20 @@ function getPreferredPort(value: string | undefined) {
   return 3000;
 }
 
-function listen(app: express.Express, port: number, host: string) {
+function listen(app: express.Express, port: number, host: string, sseClients?: Set<express.Response>) {
   return new Promise<number>((resolve, reject) => {
     const server = app.listen(port, host);
 
+    // Increase max listeners to support 100+ simultaneous SSE connections
+    server.setMaxListeners(300);
+
+    // Long keep-alive and header timeout for SSE
+    server.keepAliveTimeout = 120_000;
+    server.headersTimeout = 125_000;
+
     server.once("listening", () => {
       server.off("error", reject);
+      console.log(`[server] Max listeners set to ${server.getMaxListeners()}, keepAliveTimeout=${server.keepAliveTimeout}ms`);
       resolve(port);
     });
 
@@ -371,12 +413,12 @@ function listen(app: express.Express, port: number, host: string) {
   });
 }
 
-async function listenWithFallback(app: express.Express, preferredPort: number, host: string) {
+async function listenWithFallback(app: express.Express, preferredPort: number, host: string, sseClients?: Set<express.Response>) {
   const ports = Array.from({ length: 20 }, (_, index) => preferredPort + index);
 
   for (const port of ports) {
     try {
-      return await listen(app, port, host);
+      return await listen(app, port, host, sseClients);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EADDRINUSE") {
         throw error;

@@ -74,5 +74,19 @@ export function useQuestions() {
     }
   };
 
-  return { questions, loading, error, notifications, submitQuestion, submitAnswer };
+  const editAnswer = async (id: string, answer: string, teacherToken: string) => {
+    const res = await fetch(`/api/questions/${id}/answer`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${teacherToken}`
+      },
+      body: JSON.stringify({ answer })
+    });
+    if (!res.ok) {
+      throw new Error(res.status === 401 ? 'Teacher access has expired' : 'Could not edit answer');
+    }
+  };
+
+  return { questions, loading, error, notifications, submitQuestion, submitAnswer, editAnswer };
 }

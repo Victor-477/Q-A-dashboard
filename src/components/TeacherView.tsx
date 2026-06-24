@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Question } from '../types';
-import { CheckCircle, Reply, UserRound } from 'lucide-react';
+import { CheckCircle, Pencil, Reply, UserRound } from 'lucide-react';
 import { formatDate } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -8,10 +8,12 @@ interface TeacherViewProps {
   questions: Question[];
   teacherName?: string;
   onSubmitAnswer: (id: string, answer: string) => Promise<void>;
+  onEditAnswer: (id: string, answer: string) => Promise<void>;
 }
 
-export function TeacherView({ questions, teacherName, onSubmitAnswer }: TeacherViewProps) {
+export function TeacherView({ questions, teacherName, onSubmitAnswer, onEditAnswer }: TeacherViewProps) {
   const [answeringId, setAnsweringId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [answerText, setAnswerText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [filter, setFilter] = useState<'pending' | 'answered' | 'all'>('pending');
@@ -39,6 +41,32 @@ export function TeacherView({ questions, teacherName, onSubmitAnswer }: TeacherV
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleEditSubmit = async (id: string) => {
+    if (!answerText.trim()) return;
+    setIsSubmitting(true);
+    try {
+      await onEditAnswer(id, answerText.trim());
+      setEditingId(null);
+      setAnswerText('');
+    } catch (err) {
+      console.error(err);
+      alert('Could not update the answer. Check whether teacher access is still valid.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const startEditing = (question: Question) => {
+    setEditingId(question.id);
+    setAnsweringId(null);
+    setAnswerText(question.answer ?? '');
+  };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+    setAnswerText('');
   };
 
   const pendingCount = questions.filter(q => !q.answer).length;
@@ -120,15 +148,63 @@ export function TeacherView({ questions, teacherName, onSubmitAnswer }: TeacherV
                   {question.text}
                 </p>
 
-                {question.answer ? (
+                {/* --- ANSWERED: show answer + Edit button --- */}
+                {question.answer && editingId !== question.id ? (
                   <div className="pl-4 border-l-2 border-indigo-200 mt-4">
-                    <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Answer</h4>
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Answer</h4>
+                      <button
+                        onClick={() => startEditing(question)}
+                        className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700 transition-colors rounded-md px-2 py-1 hover:bg-indigo-50"
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                        Edit
+                      </button>
+                    </div>
                     <p className="text-gray-800 text-sm whitespace-pre-wrap">{question.answer}</p>
                     {question.answeredBy && (
                       <p className="mt-3 text-xs font-medium text-gray-500">Answered by {question.answeredBy}</p>
                     )}
                   </div>
+                ) : editingId === question.id ? (
+                  /* --- EDITING MODE --- */
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="mt-4 space-y-3"
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <Pencil className="w-4 h-4 text-amber-600" />
+                      <span className="text-sm font-semibold text-amber-700">Editing answer</span>
+                    </div>
+                    <textarea
+                      autoFocus
+                      rows={4}
+                      maxLength={1000}
+                      value={answerText}
+                      onChange={(e) => setAnswerText(e.target.value)}
+                      placeholder="Edit the answer..."
+                      className="w-full px-4 py-3 bg-white border border-amber-300 rounded-lg focus:ring-2 focus:ring-amber-500 focus:border-amber-500 outline-none resize-none text-sm"
+                    />
+                    <div className="flex justify-end space-x-2">
+                      <button
+                        onClick={cancelEditing}
+                        className="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => handleEditSubmit(question.id)}
+                        disabled={isSubmitting || !answerText.trim()}
+                        className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-700 rounded-lg transition-colors disabled:opacity-50"
+                      >
+                        <span>Save Changes</span>
+                        <Pencil className="w-4 h-4 ml-1" />
+                      </button>
+                    </div>
+                  </motion.div>
                 ) : answeringId === question.id ? (
+                  /* --- ANSWERING MODE (new answer) --- */
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
@@ -164,8 +240,13 @@ export function TeacherView({ questions, teacherName, onSubmitAnswer }: TeacherV
                     </div>
                   </motion.div>
                 ) : (
+                  /* --- NOT ANSWERED: show Answer Question button --- */
                   <button
-                    onClick={() => setAnsweringId(question.id)}
+                    onClick={() => {
+                      setAnsweringId(question.id);
+                      setEditingId(null);
+                      setAnswerText('');
+                    }}
                     className="mt-2 inline-flex items-center space-x-2 text-sm font-medium text-indigo-600 hover:text-indigo-700 transition-colors"
                   >
                     <Reply className="w-4 h-4" />
