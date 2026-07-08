@@ -33,6 +33,7 @@ function createWindow() {
     title: 'Q&A Dashboard',
     backgroundColor: '#f9fafb',
     autoHideMenuBar: true,
+    icon: path.join(__dirname, '../assets/icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,

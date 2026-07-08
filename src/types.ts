@@ -4,6 +4,7 @@ export interface Question {
   studentName: string;
   text: string;
   answer?: string;
+  previousAnswer?: string;
   answeredBy?: string;
   createdAt: string;
   answeredAt?: string;

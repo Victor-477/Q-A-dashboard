@@ -1,11 +1,13 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Question } from '../types';
+import { useI18n } from '../i18n/I18nContext';
 
 export function useQuestions() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<{ id: string; message: string }[]>([]);
+  const { t } = useI18n();
 
   const addNotification = useCallback((message: string) => {
     const id = Math.random().toString(36).substring(2, 9);
@@ -31,23 +33,29 @@ export function useQuestions() {
         if (prev.some(q => q.id === data.id)) return prev;
         return [...prev, data];
       });
-      addNotification(`New question posted - Topic ${data.topicNumber}`);
+      addNotification(t('notify.newQuestion', { topic: data.topicNumber }));
     });
 
     eventSource.addEventListener('question_answered', (e) => {
       const data = JSON.parse(e.data);
       setQuestions(prev => prev.map(q => q.id === data.id ? data : q));
-      addNotification(`The question for topic ${data.topicNumber} has been answered!`);
+      addNotification(t('notify.questionAnswered', { topic: data.topicNumber }));
+    });
+
+    eventSource.addEventListener('question_answer_edited', (e) => {
+      const data = JSON.parse(e.data);
+      setQuestions(prev => prev.map(q => q.id === data.id ? data : q));
+      addNotification(t('notify.answerEdited', { topic: data.topicNumber }));
     });
 
     eventSource.onerror = () => {
-      setError('Real-time connection issue. Trying to reconnect...');
+      setError(t('error.sseConnection'));
     };
 
     return () => {
       eventSource.close();
     };
-  }, [addNotification]);
+  }, [addNotification, t]);
 
   const submitQuestion = async (topicNumber: number, text: string, studentName: string) => {
     const res = await fetch('/api/questions', {

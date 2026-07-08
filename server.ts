@@ -12,6 +12,7 @@ interface Question {
   studentName: string;
   text: string;
   answer?: string;
+  previousAnswer?: string;
   answeredBy?: string;
   createdAt: string;
   answeredAt?: string;
@@ -162,8 +163,8 @@ async function startServer() {
     res.status(201).json(newQuestion);
   });
 
-  // Shared handler for answering and editing answers
-  const handleAnswer = (req: express.Request, res: express.Response) => {
+  // POST to answer a question (new answer)
+  app.post("/api/questions/:id/answer", (req, res) => {
     const teacherSession = getTeacherSession(req);
     if (!teacherSession) {
       res.status(401).json({ error: "Teacher access is required" });
@@ -193,13 +194,43 @@ async function startServer() {
     notifyClients("question_answered", questions[queryIdx]);
 
     res.json(questions[queryIdx]);
-  };
+  });
 
-  // POST to answer a question (new answer)
-  app.post("/api/questions/:id/answer", handleAnswer);
+  // PUT to edit an existing answer (stores previous answer)
+  app.put("/api/questions/:id/answer", (req, res) => {
+    const teacherSession = getTeacherSession(req);
+    if (!teacherSession) {
+      res.status(401).json({ error: "Teacher access is required" });
+      return;
+    }
 
-  // PUT to edit an existing answer
-  app.put("/api/questions/:id/answer", handleAnswer);
+    const { id } = req.params;
+    const { answer } = req.body;
+
+    const queryIdx = questions.findIndex(q => q.id === id);
+    if (queryIdx === -1) {
+      res.status(404).json({ error: "Question not found" });
+      return;
+    }
+
+    if (typeof answer !== "string" || !answer.trim() || answer.length > 1000) {
+      res.status(400).json({ error: "Invalid answer" });
+      return;
+    }
+
+    const oldAnswer = questions[queryIdx].answer;
+
+    questions[queryIdx] = {
+      ...questions[queryIdx],
+      answer: answer.trim(),
+      previousAnswer: oldAnswer,
+      answeredBy: teacherSession.name || undefined,
+      answeredAt: new Date().toISOString()
+    };
+    notifyClients("question_answer_edited", questions[queryIdx]);
+
+    res.json(questions[queryIdx]);
+  });
 
   app.get("/api/questions/export", (req, res) => {
     try {
@@ -282,7 +313,9 @@ async function startServer() {
         doc.fillColor("#6b7280").font("Helvetica-Oblique").fontSize(11).text("Nenhuma pergunta registrada nesta sessão.", 50, doc.y + 10);
       } else {
         questions.forEach((q, idx) => {
-          if (doc.y > 670) {
+          const cardHeight = calculateCardHeight(doc, q);
+
+          if (doc.y + cardHeight > 750) {
             doc.addPage();
             doc.fillColor("#4f46e5").font("Helvetica-Bold").fontSize(9).text("Relatório de Perguntas e Respostas (Continuação)", 50, 30);
             doc.strokeColor("#e5e7eb").moveTo(50, 42).lineTo(545, 42).stroke();
@@ -290,7 +323,6 @@ async function startServer() {
           }
 
           const cardY = doc.y;
-          doc.save();
 
           // Metadata header
           doc.fillColor("#4b5563").font("Helvetica").fontSize(8.5);
@@ -309,32 +341,24 @@ async function startServer() {
             const answeredBy = q.answeredBy ? `por ${q.answeredBy}` : "";
             const answeredDate = q.answeredAt ? `em ${new Date(q.answeredAt).toLocaleString("pt-BR")}` : "";
             
-            // Calculate height of the answer block to make sure it doesn't overflow page
-            const textHeight = doc.heightOfString(`Resposta ${answeredBy} ${answeredDate}:\n${answerText}`, { width: 450 }) + 14;
+            // Calculate height of the answer block components
+            doc.font("Helvetica-Bold").fontSize(9);
+            const labelHeight = doc.heightOfString(`Resposta ${answeredBy} ${answeredDate}:`, { width: 450 });
             
-            if (answerY + textHeight > 740) {
-              doc.addPage();
-              doc.fillColor("#4f46e5").font("Helvetica-Bold").fontSize(9).text("Relatório de Perguntas e Respostas (Continuação)", 50, 30);
-              doc.strokeColor("#e5e7eb").moveTo(50, 42).lineTo(545, 42).stroke();
-              doc.y = 55;
-              
-              const newAnswerY = doc.y;
-              doc.rect(55, newAnswerY, 480, textHeight).fill("#f3f4f6");
-              doc.fillColor("#374151").font("Helvetica-Bold").fontSize(9).text(`Resposta ${answeredBy} ${answeredDate}:`, 65, newAnswerY + 7);
-              doc.fillColor("#111827").font("Helvetica").fontSize(10).text(answerText, 65, doc.y + 3, { width: 450 });
-              doc.y = newAnswerY + textHeight + 8;
-            } else {
-              doc.rect(55, answerY, 480, textHeight).fill("#f3f4f6");
-              doc.fillColor("#374151").font("Helvetica-Bold").fontSize(9).text(`Resposta ${answeredBy} ${answeredDate}:`, 65, answerY + 7);
-              doc.fillColor("#111827").font("Helvetica").fontSize(10).text(answerText, 65, doc.y + 3, { width: 450 });
-              doc.y = answerY + textHeight + 8;
-            }
+            doc.font("Helvetica").fontSize(10);
+            const bodyHeight = doc.heightOfString(answerText, { width: 450 });
+            
+            const boxHeight = labelHeight + 3 + bodyHeight + 14;
+            
+            doc.rect(55, answerY, 480, boxHeight).fill("#f3f4f6");
+            doc.fillColor("#374151").font("Helvetica-Bold").fontSize(9).text(`Resposta ${answeredBy} ${answeredDate}:`, 65, answerY + 7);
+            doc.fillColor("#111827").font("Helvetica").fontSize(10).text(answerText, 65, doc.y + 3, { width: 450 });
+            doc.y = answerY + boxHeight + 8;
           } else {
             doc.fillColor("#dc2626").font("Helvetica-Bold").fontSize(9).text("●  Pendente de resposta", 60, doc.y);
             doc.y = doc.y + 12;
           }
 
-          doc.restore();
           doc.moveDown(1.2);
           doc.strokeColor("#f3f4f6").lineWidth(1).moveTo(50, doc.y).lineTo(545, doc.y).stroke();
           doc.moveDown(0.8);
@@ -390,6 +414,37 @@ function getPreferredPort(value: string | undefined) {
 
   console.warn(`Invalid PORT "${value}", falling back to 3000.`);
   return 3000;
+}
+
+function calculateCardHeight(doc: any, q: Question): number {
+  let height = 12; // Metadata header (Helvetica 8.5)
+  height += 5;     // Spacing (moveDown 0.35)
+  
+  doc.font("Helvetica-Oblique").fontSize(10.5);
+  height += doc.heightOfString(`"${q.text}"`, { width: 470 });
+  
+  height += 7;     // Spacing (moveDown 0.5)
+  
+  if (q.answer) {
+    const answeredBy = q.answeredBy ? `por ${q.answeredBy}` : "";
+    const answeredDate = q.answeredAt ? `em ${new Date(q.answeredAt).toLocaleString("pt-BR")}` : "";
+    
+    doc.font("Helvetica-Bold").fontSize(9);
+    const labelHeight = doc.heightOfString(`Resposta ${answeredBy} ${answeredDate}:`, { width: 450 });
+    
+    doc.font("Helvetica").fontSize(10);
+    const bodyHeight = doc.heightOfString(q.answer, { width: 450 });
+    
+    height += labelHeight + 3 + bodyHeight + 14; // Grey box height + internal padding
+  } else {
+    height += 12; // Pending status height
+  }
+  
+  height += 15; // Spacing (moveDown 1.2)
+  height += 1;  // Divider line stroke
+  height += 10; // Spacing (moveDown 0.8)
+  
+  return height;
 }
 
 function listen(app: express.Express, port: number, host: string, sseClients?: Set<express.Response>) {
