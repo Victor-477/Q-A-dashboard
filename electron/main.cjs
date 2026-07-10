@@ -87,7 +87,8 @@ function normalizeConfig(config = {}) {
     host: String(config.host || '0.0.0.0').trim() || '0.0.0.0',
     teacherPasswords: String(config.teacherPasswords || 'professor123').trim() || 'professor123',
     workingDirectory: String(config.workingDirectory || app.getAppPath()).trim() || app.getAppPath(),
-    mode: app.isPackaged ? defaultMode : requestedMode
+    mode: app.isPackaged ? defaultMode : requestedMode,
+    enableAutoTranslate: config.enableAutoTranslate !== false
   };
 }
 
@@ -170,6 +171,7 @@ function startService(configInput) {
         PORT: String(config.port),
         HOST: config.host,
         TEACHER_PASSWORDS: config.teacherPasswords,
+        ENABLE_AUTO_TRANSLATE: config.enableAutoTranslate ? 'true' : 'false',
         NODE_ENV: config.mode === 'production' ? 'production' : ''
       },
       windowsHide: true

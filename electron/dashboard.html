@@ -4,138 +4,448 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Q&A Dashboard Control</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="./dashboard.css" />
   </head>
   <body>
     <div class="app-shell">
-      <header class="topbar">
-        <div class="brand">
-          <div class="brand-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <path d="M12 3 3.5 7.4 12 12l8.5-4.6L12 3Z"></path>
-              <path d="M5 9.8V15c0 2.2 3.1 4 7 4s7-1.8 7-4V9.8"></path>
+
+      <!-- ─── Left Sidebar ─── -->
+      <nav class="sidebar">
+        <span class="sidebar-system-label" data-t="sidebar.system">SYSTEM</span>
+        <div class="sidebar-header">
+          <div class="sidebar-logo">
+            <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
             </svg>
           </div>
-          <div>
-            <strong>Q&A Dashboard</strong>
-            <span>Local application manager</span>
+          <div class="sidebar-title">
+            <strong data-t="sidebar.admin">Local Q&A Admin</strong>
+            <span class="sidebar-version">v1.1.0-stable</span>
           </div>
         </div>
 
-        <div class="header-actions">
-          <span id="headerStatus" class="status-badge stopped">
-            <span id="statusDot" class="status-dot stopped"></span>
-            <span id="statusText">stopped</span>
-          </span>
-          <button id="headerAction" class="button button-primary">Start Application</button>
+        <ul class="nav-list">
+          <li>
+            <a href="#" class="nav-item active" data-section="dashboard">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="7" height="7" rx="1" />
+                <rect x="14" y="3" width="7" height="7" rx="1" />
+                <rect x="3" y="14" width="7" height="7" rx="1" />
+                <rect x="14" y="14" width="7" height="7" rx="1" />
+              </svg>
+              <span data-t="sidebar.dashboard">Dashboard</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" class="nav-item" data-section="configuration">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+              <span data-t="sidebar.configuration">Configuration</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" class="nav-item" data-section="activity-logs">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="8" y1="6" x2="21" y2="6" />
+                <line x1="8" y1="12" x2="21" y2="12" />
+                <line x1="8" y1="18" x2="21" y2="18" />
+                <line x1="3" y1="6" x2="3.01" y2="6" />
+                <line x1="3" y1="12" x2="3.01" y2="12" />
+                <line x1="3" y1="18" x2="3.01" y2="18" />
+              </svg>
+              <span data-t="sidebar.logs">Activity Logs</span>
+            </a>
+          </li>
+          <li>
+            <a href="#" class="nav-item" data-section="system-settings">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="4" y1="21" x2="4" y2="14" />
+                <line x1="4" y1="10" x2="4" y2="3" />
+                <line x1="12" y1="21" x2="12" y2="12" />
+                <line x1="12" y1="8" x2="12" y2="3" />
+                <line x1="20" y1="21" x2="20" y2="16" />
+                <line x1="20" y1="12" x2="20" y2="3" />
+                <line x1="1" y1="14" x2="7" y2="14" />
+                <line x1="9" y1="8" x2="15" y2="8" />
+                <line x1="17" y1="16" x2="23" y2="16" />
+              </svg>
+              <span data-t="sidebar.settings">System Settings</span>
+            </a>
+          </li>
+        </ul>
+
+        <!-- Language Selector -->
+        <div class="lang-selector-container">
+          <label for="langSelect" data-t="sidebar.language">🌐 Language</label>
+          <select id="langSelect" class="lang-select">
+            <option value="en">English (US)</option>
+            <option value="pt">Português (BR)</option>
+            <option value="es">Español (ES)</option>
+            <option value="de">Deutsch (DE)</option>
+            <option value="ja">日本語 (JP)</option>
+          </select>
         </div>
-      </header>
+      </nav>
 
-      <main class="main">
-        <section class="overview-panel">
-          <div class="overview-copy">
-            <p class="eyebrow">Local runner</p>
-            <h1>Manage the Q&A web application</h1>
-            <p>Configure the classroom site, start or stop it locally, and open the student or teacher page when the application is running.</p>
-          </div>
+      <!-- ─── Center Content ─── -->
+      <main class="content">
+        <h1 class="page-title" id="pageTitle" data-t="page.dashboard">Dashboard</h1>
 
-          <div class="overview-status">
-            <div class="status-card">
-              <span>Application status</span>
-              <strong id="runtimeStatus">Stopped</strong>
-            </div>
-            <dl class="metrics">
-              <div>
-                <dt>Process ID</dt>
-                <dd id="runtimePid">-</dd>
+        <!-- View: Dashboard -->
+        <div data-section-content="dashboard" class="section-container">
+          <!-- Hero Card -->
+          <section class="hero-card">
+            <div class="hero-body">
+              <div class="hero-text">
+                <span class="eyebrow" data-t="hero.eyebrow">LOCAL RUNNER</span>
+                <h2 class="hero-heading" data-t="hero.title">Manage the Q&A application</h2>
+                <p class="hero-description" data-t="hero.desc">Configure the classroom site, start or stop it locally, and open the teacher or student view when running.</p>
               </div>
-              <div>
-                <dt>Active Port</dt>
-                <dd id="runtimePort">-</dd>
-              </div>
-            </dl>
-          </div>
-        </section>
-
-        <section class="dashboard-grid">
-          <section class="primary-column">
-            <article class="panel settings-panel">
-              <div class="panel-heading">
-                <div>
-                  <p class="eyebrow">Configuration</p>
-                  <h2>Application configuration</h2>
+              <div class="hero-actions">
+                <button id="headerAction" class="btn btn-primary btn-lg">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" stroke="none">
+                    <polygon points="6,3 20,12 6,21" />
+                  </svg>
+                  <span>Start Application</span>
+                </button>
+                <div id="headerStatus" class="status-indicator stopped">
+                  <span id="statusDot" class="status-dot stopped"></span>
+                  <span id="statusText">STOPPED</span>
                 </div>
               </div>
-
-              <form id="settingsForm" class="settings-grid">
-                <label class="field field-full">
-                  <span>Application name</span>
-                  <input id="appName" value="Q&A Dashboard" />
-                </label>
-
-                <label class="field">
-                  <span>Port</span>
-                  <input id="port" type="number" min="1" max="65535" value="3000" placeholder="3000" />
-                </label>
-
-                <label class="field">
-                  <span>Host</span>
-                  <input id="host" value="0.0.0.0" placeholder="0.0.0.0" />
-                </label>
-
-                <label class="field field-full">
-                  <span>Teacher passwords</span>
-                  <input id="teacherPasswords" value="professor123" placeholder="password1,password2" />
-                </label>
-
-                <label class="field field-full">
-                  <span>Working directory</span>
-                  <input id="workingDirectory" placeholder="Project directory" />
-                </label>
-
-                <label class="field field-full">
-                  <span>Run mode</span>
-                  <select id="mode">
-                    <option value="development">Development</option>
-                    <option value="production">Production</option>
-                  </select>
-                </label>
-              </form>
-            </article>
+            </div>
+            <div class="hero-stats">
+              <div class="stat-box">
+                <span class="stat-label" data-t="hero.pid">PROCESS ID</span>
+                <strong class="stat-value" id="runtimePid">-</strong>
+              </div>
+              <div class="stat-box">
+                <span class="stat-label" data-t="hero.port">ACTIVE PORT</span>
+                <strong class="stat-value" id="runtimePort">-</strong>
+              </div>
+              <div class="stat-box">
+                <span class="stat-label" data-t="hero.uptime">UPTIME</span>
+                <strong class="stat-value" id="runtimeUptime">0s</strong>
+              </div>
+            </div>
           </section>
 
-          <aside class="secondary-column">
-            <article class="panel actions-panel">
-              <div class="panel-heading compact">
-                <div>
-                  <p class="eyebrow">Access</p>
-                  <h2>Open web pages</h2>
+          <!-- Server Data and Statistics Card -->
+          <section class="stats-card-main">
+            <div class="section-header">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="2" width="20" height="8" rx="2" ry="2" />
+                <rect x="2" y="14" width="20" height="8" rx="2" ry="2" />
+                <line x1="6" y1="6" x2="6.01" y2="6" />
+                <line x1="6" y1="18" x2="6.01" y2="18" />
+              </svg>
+              <h2 data-t="stats.title">Application Data & Stats</h2>
+            </div>
+            <div class="main-stats-grid">
+              <div class="main-stat-item">
+                <span data-t="stats.devices">Connected Devices</span>
+                <strong id="mainStatDevices">0</strong>
+              </div>
+              <div class="main-stat-item">
+                <span data-t="stats.questions">Total Questions</span>
+                <strong id="mainStatTotalQuestions">0</strong>
+              </div>
+              <div class="main-stat-item">
+                <span data-t="stats.answered">Answered Questions</span>
+                <strong id="mainStatAnsweredQuestions">0</strong>
+              </div>
+              <div class="main-stat-item">
+                <span data-t="stats.pending">Pending Questions</span>
+                <strong id="mainStatPendingQuestions">0</strong>
+              </div>
+              <div class="main-stat-item main-stat-full">
+                <span data-t="stats.url">Server URL</span>
+                <strong id="mainStatServerUrl">-</strong>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- View: Configuration -->
+        <div data-section-content="configuration" class="section-container" style="display: none;">
+          <section class="config-section">
+            <div class="section-header">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+              <h2 data-t="config.title">Application Configuration</h2>
+            </div>
+
+            <form id="settingsForm" class="settings-form" autocomplete="off">
+              <!-- Application Name (full width) -->
+              <div class="form-group form-full">
+                <label for="appName" data-t="config.name">Application Name</label>
+                <input id="appName" type="text" value="Q&A Dashboard" />
+              </div>
+
+              <!-- Port & Host (side by side) -->
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="port" data-t="config.port">Port</label>
+                  <input id="port" type="number" min="1" max="65535" value="3000" placeholder="3000" />
+                </div>
+                <div class="form-group">
+                  <label for="host" data-t="config.host">Host</label>
+                  <input id="host" type="text" value="0.0.0.0" placeholder="0.0.0.0" />
                 </div>
               </div>
-              <div class="action-grid">
-                <button id="openHome" class="button button-muted" disabled>Home</button>
-                <button id="openStudent" class="button button-muted" disabled>Student</button>
-                <button id="openTeacher" class="button button-muted" disabled>Teacher</button>
-                <button id="downloadLog" class="button button-muted" disabled>Download Log (XLS)</button>
-                <button id="downloadPdf" class="button button-muted" disabled>Download Log (PDF)</button>
+
+              <!-- Automatic Translation Option -->
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="enableAutoTranslate" data-t="config.autoTranslate">Automatic Translation</label>
+                  <select id="enableAutoTranslate">
+                    <option value="true" data-t="config.enabled">Enabled</option>
+                    <option value="false" data-t="config.disabled">Disabled</option>
+                  </select>
+                </div>
+                <div class="form-group" style="visibility: hidden"></div>
               </div>
-            </article>
-            <article class="panel logs-panel">
-              <div class="panel-heading compact">
-                <div>
-                  <p class="eyebrow">Runtime</p>
-                  <h2>Activity log</h2>
+
+              <!-- Teacher Password (full width) -->
+              <div class="form-group form-full">
+                <label for="teacherPasswords" data-t="config.password">Teacher Password</label>
+                <div class="input-password-wrapper">
+                  <input id="teacherPasswords" type="password" value="professor123" placeholder="password1,password2" />
+                  <button type="button" id="togglePassword" class="btn-icon" aria-label="Toggle password visibility">
+                    <svg class="icon-eye" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                      <circle cx="12" cy="12" r="3" />
+                    </svg>
+                    <svg class="icon-eye-off" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none">
+                      <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" />
+                      <line x1="1" y1="1" x2="23" y2="23" />
+                    </svg>
+                  </button>
                 </div>
               </div>
-              <pre id="logBox" class="log-box">Waiting for application activity...</pre>
-            </article>
-          </aside>
-        </section>
+
+              <!-- Working Directory (full width) -->
+              <div class="form-group form-full">
+                <label for="workingDirectory" data-t="config.directory">Working Directory</label>
+                <div class="input-browse-wrapper">
+                  <div class="input-browse-icon">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                    </svg>
+                  </div>
+                  <input id="workingDirectory" type="text" placeholder="Project directory" />
+                  <button type="button" class="btn btn-browse" onclick="window.electronAPI && window.electronAPI.browseDirectory()" data-t="config.browse">Browse</button>
+                </div>
+              </div>
+
+              <!-- Hidden Run Mode (preserved for JS) -->
+              <select id="mode" style="display:none" aria-hidden="true">
+                <option value="development">Development</option>
+                <option value="production">Production</option>
+              </select>
+
+              <!-- Form Actions -->
+              <div class="form-actions">
+                <button type="button" id="discardSettings" class="btn btn-secondary" data-t="config.discard">Discard</button>
+                <button type="button" id="saveSettings" class="btn btn-primary" data-t="config.save">Save Settings</button>
+              </div>
+            </form>
+          </section>
+        </div>
+
+        <!-- View: Activity Logs -->
+        <div data-section-content="activity-logs" class="section-container" style="display: none;">
+          <div class="logs-card">
+            <div class="section-header">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="8" y1="6" x2="21" y2="6" />
+                <line x1="8" y1="12" x2="21" y2="12" />
+                <line x1="8" y1="18" x2="21" y2="18" />
+                <line x1="3" y1="6" x2="3.01" y2="6" />
+                <line x1="3" y1="12" x2="3.01" y2="12" />
+                <line x1="3" y1="18" x2="3.01" y2="18" />
+              </svg>
+              <h2 data-t="logs.title">Runtime Activity Logs</h2>
+            </div>
+            <div class="log-section-full">
+              <pre id="logBox" class="log-box-full" data-t="logs.waiting">Waiting for application activity...</pre>
+            </div>
+          </div>
+        </div>
+
+        <!-- View: System Settings -->
+        <div data-section-content="system-settings" class="section-container" style="display: none;">
+          <div class="system-settings-card">
+            <div class="section-header">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="3" />
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </svg>
+              <h2 data-t="pref.title">System Preferences</h2>
+            </div>
+            
+            <div class="settings-options-list">
+              <div class="settings-option">
+                <div class="settings-option-info">
+                  <strong data-t="pref.autostart.title">Auto-Start Control Panel</strong>
+                  <p data-t="pref.autostart.desc">Launch the Q&A Dashboard automatically when logging in.</p>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="autoStartOption">
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <div class="settings-option">
+                <div class="settings-option-info">
+                  <strong data-t="pref.minimize.title">Minimize to Tray</strong>
+                  <p data-t="pref.minimize.desc">Keep the control panel active in the system tray when closing the window.</p>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="minimizeOption" checked>
+                  <span class="slider"></span>
+                </label>
+              </div>
+
+              <div class="settings-option">
+                <div class="settings-option-info">
+                  <strong data-t="pref.debug.title">Development Debug Output</strong>
+                  <p data-t="pref.debug.desc">Enable debug logs in the terminal interface and activate Chromium inspection tool.</p>
+                </div>
+                <label class="switch">
+                  <input type="checkbox" id="debugOption">
+                  <span class="slider"></span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+
       </main>
 
+      <!-- ─── Right Sidebar ─── -->
+      <aside class="right-sidebar">
+
+        <!-- Quick Access -->
+        <div class="sidebar-card">
+          <div class="sidebar-card-header">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+              <polyline points="15 3 21 3 21 9" />
+              <line x1="10" y1="14" x2="21" y2="3" />
+            </svg>
+            <h3 data-t="quick.title">Quick Access</h3>
+          </div>
+          <div class="quick-links">
+            <button id="openHome" class="quick-link-item" disabled>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                <polyline points="9 22 9 12 15 12 15 22" />
+              </svg>
+              <span data-t="quick.home">Home Page</span>
+            </button>
+            <button id="openStudent" class="quick-link-item" disabled>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
+                <path d="M6 12v5c0 2 2 3 6 3s6-1 6-3v-5" />
+              </svg>
+              <span data-t="quick.student">Student Portal</span>
+            </button>
+            <button id="openTeacher" class="quick-link-item" disabled>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <circle cx="10" cy="13" r="2" />
+                <path d="M14 17a4 4 0 0 0-8 0" />
+              </svg>
+              <span data-t="quick.teacher">Teacher Dashboard</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Data Exports -->
+        <div class="sidebar-section">
+          <span class="sidebar-section-label" data-t="exports.title">DATA EXPORTS</span>
+          <div class="export-buttons">
+            <button id="downloadPdf" class="btn btn-export" disabled>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+              </svg>
+              <span data-t="exports.pdf">PDF Log</span>
+            </button>
+            <button id="downloadLog" class="btn btn-export" disabled>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <line x1="3" y1="9" x2="21" y2="9" />
+                <line x1="3" y1="15" x2="21" y2="15" />
+                <line x1="9" y1="3" x2="9" y2="21" />
+                <line x1="15" y1="3" x2="15" y2="21" />
+              </svg>
+              <span data-t="exports.xls">XLS Log</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Runtime Analytics -->
+        <div class="sidebar-card">
+          <div class="sidebar-card-header">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="20" x2="18" y2="10" />
+              <line x1="12" y1="20" x2="12" y2="4" />
+              <line x1="6" y1="20" x2="6" y2="14" />
+            </svg>
+            <h3 data-t="analytics.title">Runtime Analytics</h3>
+          </div>
+          <div class="analytics-body">
+            <!-- CPU Usage -->
+            <div class="analytics-progress-group">
+              <div class="progress-label-row">
+                <span data-t="analytics.cpu">CPU Usage</span>
+                <span id="cpuValue">12%</span>
+              </div>
+              <div class="progress-bar-container">
+                <div class="progress-bar" id="cpuBar" style="width: 12%"></div>
+              </div>
+            </div>
+            <!-- Memory Usage -->
+            <div class="analytics-progress-group">
+              <div class="progress-label-row">
+                <span data-t="analytics.memory">Memory</span>
+                <span id="memoryValue">256MB / 1GB</span>
+              </div>
+              <div class="progress-bar-container">
+                <div class="progress-bar" id="memoryBar" style="width: 25%"></div>
+              </div>
+            </div>
+            <!-- Connection Status -->
+            <div class="db-status-row">
+              <span class="db-status-dot" id="dbStatusDot"></span>
+              <span id="dbStatusText" data-t="analytics.db_disconnected">Database connection: Disconnected</span>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- ─── Footer ─── -->
       <footer class="footer">
-        <span class="footer-accent">Control Panel</span> - Q&A Dashboard v1.1.0 - Made By <a href="https://github.com/Victor-477" target="_blank" style="color:#a5b4fc;text-decoration:underline">Victor Samuel</a>
+        <span data-t="footer.text">Control Panel</span>
+        <span class="footer-sep">•</span>
+        <span>Q&A Dashboard v1.1.0</span>
+        <span class="footer-sep">•</span>
+        <span>Made By <a href="https://github.com/Victor-477" target="_blank" rel="noopener noreferrer">Victor Samuel</a></span>
       </footer>
+
     </div>
 
     <script src="./dashboard.js"></script>

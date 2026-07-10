@@ -129,6 +129,21 @@ async function startServer() {
   });
 
   // REST endpoints
+  app.get("/api/stats", (req, res) => {
+    res.json({
+      connectedClients: clients.size,
+      totalQuestions: questions.length,
+      answeredQuestions: questions.filter(q => q.answer).length,
+      pendingQuestions: questions.filter(q => !q.answer).length
+    });
+  });
+
+  app.get("/api/config", (req, res) => {
+    res.json({
+      enableAutoTranslate: process.env.ENABLE_AUTO_TRANSLATE !== 'false'
+    });
+  });
+
   app.get("/api/questions", (req, res) => {
     res.json(questions);
   });
