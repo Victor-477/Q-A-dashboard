@@ -924,6 +924,32 @@ input:checked + .slider:before {
   letter-spacing: 0.08em;
 }
 
+.export-scope {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  user-select: none;
+}
+
+.export-scope input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--primary, #4f46e5);
+}
+
+.form-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
 .export-buttons {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

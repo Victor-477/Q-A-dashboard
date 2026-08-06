@@ -15,6 +15,53 @@ Legacy routes are still supported:
 
 The teacher route requires a password. The student route asks for the student's name on first access and stores it in the browser.
 
+## Data Persistence
+
+Questions and answers are stored in a SQLite database, so nothing is lost when the
+server restarts or the machine reboots. The database uses Node's built-in
+`node:sqlite` module — there is no native dependency to compile and no external
+database to install.
+
+The database location is:
+
+- **Electron dashboard**: `%APPDATA%\qa-dashboard\data\qa-board.db` by default.
+  You can point it somewhere else (a USB drive, for example) in the
+  *Database Folder* field under Configuration.
+- **`npm run dev`**: `./data/qa-board.db`.
+- **Any run**: overridden by the `QA_DATA_DIR` environment variable.
+
+The path in use is printed at startup and shown in the dashboard's Activity Logs.
+
+### Starting a new class
+
+The teacher page has a **Clear board** button. It empties the board for a fresh
+class but **does not delete anything** — the questions are archived and stay in
+the database.
+
+To export them, tick **Include previous sessions** in the dashboard before
+downloading the PDF or XLS. Without that option, exports cover only the current
+board.
+
+## Export Access
+
+The export endpoints are **not public** — they would otherwise let anyone on the
+network download every question ever recorded. They require a teacher token:
+
+- The Electron dashboard authenticates itself automatically. Its export buttons
+  work with no extra setup.
+- Over HTTP you must send the token from the teacher login, so a plain browser
+  URL will not work:
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" "http://localhost:3000/api/questions/export?all=1" -o log.xlsx
+```
+
+Get `$TOKEN` from `POST /api/teacher/login`, or read the value stored under
+`qa-board.teacherSession` in the teacher page's local storage.
+
+Append `?all=1` to either export route (`/api/questions/export` and
+`/api/questions/export/pdf`) to include archived sessions.
+
 ## Teacher Password
 
 The default password is defined in `server.ts` as `professor123`.

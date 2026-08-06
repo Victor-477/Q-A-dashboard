@@ -19,6 +19,7 @@ const DEFAULT_CONFIG = Object.freeze({
   host: '0.0.0.0',
   teacherPasswords: 'professor123',
   workingDirectory: '',
+  dataDirectory: '',
   mode: 'development',
   enableAutoTranslate: true,
 });
@@ -66,6 +67,8 @@ const TRANSLATIONS = {
     'config.disabled': 'Disabled',
     'config.password': 'Teacher Password',
     'config.directory': 'Working Directory',
+    'config.dataDirectory': 'Database Folder',
+    'config.dataDirectoryHint': 'Questions are stored here and survive restarts. Leave empty to use the default folder.',
     'config.browse': 'Browse',
     'config.discard': 'Discard',
     'config.save': 'Save Settings',
@@ -80,6 +83,7 @@ const TRANSLATIONS = {
     'quick.student': 'Student Portal',
     'quick.teacher': 'Teacher Dashboard',
     'exports.title': 'DATA EXPORTS',
+    'exports.includeArchived': 'Include previous sessions',
     'exports.pdf': 'PDF Log',
     'exports.xls': 'XLS Log',
     'analytics.title': 'Runtime Analytics',
@@ -131,6 +135,8 @@ const TRANSLATIONS = {
     'config.disabled': 'Desabilitado',
     'config.password': 'Senha do Professor',
     'config.directory': 'Diretório de Trabalho',
+    'config.dataDirectory': 'Pasta do Banco de Dados',
+    'config.dataDirectoryHint': 'As perguntas são gravadas aqui e sobrevivem a reinicializações. Deixe vazio para usar a pasta padrão.',
     'config.browse': 'Buscar',
     'config.discard': 'Descartar',
     'config.save': 'Salvar Ajustes',
@@ -145,6 +151,7 @@ const TRANSLATIONS = {
     'quick.student': 'Portal do Aluno',
     'quick.teacher': 'Painel do Professor',
     'exports.title': 'EXPORTAR DADOS',
+    'exports.includeArchived': 'Incluir sessões anteriores',
     'exports.pdf': 'Relatório PDF',
     'exports.xls': 'Planilha XLS',
     'analytics.title': 'Métricas do Sistema',
@@ -196,6 +203,8 @@ const TRANSLATIONS = {
     'config.disabled': 'Deshabilitado',
     'config.password': 'Contraseña del Profesor',
     'config.directory': 'Directorio de Trabajo',
+    'config.dataDirectory': 'Carpeta de la Base de Datos',
+    'config.dataDirectoryHint': 'Las preguntas se guardan aquí y sobreviven a los reinicios. Déjelo vacío para usar la carpeta predeterminada.',
     'config.browse': 'Buscar',
     'config.discard': 'Descartar',
     'config.save': 'Guardar Ajustes',
@@ -210,6 +219,7 @@ const TRANSLATIONS = {
     'quick.student': 'Portal del Estudiante',
     'quick.teacher': 'Panel del Profesor',
     'exports.title': 'EXPORTACIÓN DE DATOS',
+    'exports.includeArchived': 'Incluir sesiones anteriores',
     'exports.pdf': 'Reporte PDF',
     'exports.xls': 'Planilla XLS',
     'analytics.title': 'Métricas del Sistema',
@@ -261,6 +271,8 @@ const TRANSLATIONS = {
     'config.disabled': 'Deaktiviert',
     'config.password': 'Lehrer-Passwort',
     'config.directory': 'Arbeitsverzeichnis',
+    'config.dataDirectory': 'Datenbankordner',
+    'config.dataDirectoryHint': 'Fragen werden hier gespeichert und überstehen Neustarts. Leer lassen, um den Standardordner zu verwenden.',
     'config.browse': 'Durchsuchen',
     'config.discard': 'Verwerfen',
     'config.save': 'Einstellungen speichern',
@@ -275,6 +287,7 @@ const TRANSLATIONS = {
     'quick.student': 'Schülerportal',
     'quick.teacher': 'Lehrer-Dashboard',
     'exports.title': 'DATENEXPORT',
+    'exports.includeArchived': 'Frühere Sitzungen einbeziehen',
     'exports.pdf': 'PDF-Protokoll',
     'exports.xls': 'XLS-Protokoll',
     'analytics.title': 'Systemmetriken',
@@ -326,6 +339,8 @@ const TRANSLATIONS = {
     'config.disabled': '無効',
     'config.password': '教師用パスワード',
     'config.directory': '作業ディレクトリ',
+    'config.dataDirectory': 'データベースフォルダ',
+    'config.dataDirectoryHint': '質問はここに保存され、再起動後も保持されます。空欄の場合は既定のフォルダを使用します。',
     'config.browse': '参照',
     'config.discard': '破棄',
     'config.save': '設定保存',
@@ -340,6 +355,7 @@ const TRANSLATIONS = {
     'quick.student': '生徒用ポータル',
     'quick.teacher': '教師用ダッシュボード',
     'exports.title': 'データエクスポート',
+    'exports.includeArchived': '過去のセッションを含める',
     'exports.pdf': 'PDF出力',
     'exports.xls': 'Excel出力',
     'analytics.title': 'システムメトリクス',
@@ -378,6 +394,7 @@ const fields = {
   enableAutoTranslate: $('#enableAutoTranslate'),
   teacherPasswords: $('#teacherPasswords'),
   workingDirectory: $('#workingDirectory'),
+  dataDirectory: $('#dataDirectory'),
   mode: $('#mode'),
 };
 
@@ -405,6 +422,7 @@ const el = {
   openTeacher: $('#openTeacher'),
   downloadLog: $('#downloadLog'),
   downloadPdf: $('#downloadPdf'),
+  exportIncludeArchived: $('#exportIncludeArchived'),
 
   // Settings actions
   saveSettings: $('#saveSettings'),
@@ -498,6 +516,8 @@ function readConfig() {
     teacherPasswords:
       fields.teacherPasswords?.value.trim() || DEFAULT_CONFIG.teacherPasswords,
     workingDirectory: fields.workingDirectory?.value.trim() ?? '',
+    // Empty means "let the main process pick the default folder".
+    dataDirectory: fields.dataDirectory?.value.trim() ?? '',
     mode: fields.mode?.value ?? DEFAULT_CONFIG.mode,
   };
 }
@@ -849,7 +869,9 @@ function bindEvents() {
   el.downloadLog?.addEventListener('click', async () => {
     try {
       el.downloadLog.disabled = true;
-      const result = await window.qaDashboard.downloadLog();
+      const result = await window.qaDashboard.downloadLog({
+        includeArchived: Boolean(el.exportIncludeArchived?.checked)
+      });
       if (result?.success) {
         console.log('XLS Log saved successfully to:', result.filePath);
       }
@@ -863,7 +885,9 @@ function bindEvents() {
   el.downloadPdf?.addEventListener('click', async () => {
     try {
       el.downloadPdf.disabled = true;
-      const result = await window.qaDashboard.downloadPdf();
+      const result = await window.qaDashboard.downloadPdf({
+        includeArchived: Boolean(el.exportIncludeArchived?.checked)
+      });
       if (result?.success) {
         console.log('PDF Log saved successfully to:', result.filePath);
       }

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Question } from '../types';
-import { CheckCircle, Pencil, Reply, UserRound, History } from 'lucide-react';
+import { CheckCircle, Pencil, Reply, UserRound, History, Eraser } from 'lucide-react';
 import { useI18n } from '../i18n/I18nContext';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -9,15 +9,17 @@ interface TeacherViewProps {
   teacherName?: string;
   onSubmitAnswer: (id: string, answer: string) => Promise<void>;
   onEditAnswer: (id: string, answer: string) => Promise<void>;
+  onClearBoard: () => Promise<void>;
 }
 
-export function TeacherView({ questions, teacherName, onSubmitAnswer, onEditAnswer }: TeacherViewProps) {
+export function TeacherView({ questions, teacherName, onSubmitAnswer, onEditAnswer, onClearBoard }: TeacherViewProps) {
   const { t, formatDate } = useI18n();
   const [answeringId, setAnsweringId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [answerText, setAnswerText] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [filter, setFilter] = useState<'pending' | 'answered' | 'all'>('pending');
+  const [isClearing, setIsClearing] = useState(false);
   const [showPrevious, setShowPrevious] = useState<Record<string, boolean>>({});
 
   const filteredQuestions = useMemo(() => {
@@ -71,6 +73,20 @@ export function TeacherView({ questions, teacherName, onSubmitAnswer, onEditAnsw
     setAnswerText('');
   };
 
+  const handleClearBoard = async () => {
+    if (!window.confirm(t('teacher.clearBoardConfirm', { count: questions.length }))) return;
+
+    setIsClearing(true);
+    try {
+      await onClearBoard();
+    } catch (err) {
+      console.error(err);
+      alert(t('teacher.clearBoardError'));
+    } finally {
+      setIsClearing(false);
+    }
+  };
+
   const pendingCount = questions.filter(q => !q.answer).length;
 
   return (
@@ -89,7 +105,18 @@ export function TeacherView({ questions, teacherName, onSubmitAnswer, onEditAnsw
           <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">{t('teacher.pendingCount', { count: pendingCount })}</p>
         </div>
 
-        <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={handleClearBoard}
+            disabled={isClearing || questions.length === 0}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-300 transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <Eraser className="h-4 w-4" />
+            {t('teacher.clearBoard')}
+          </button>
+
+          <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-lg">
           {(['pending', 'answered', 'all'] as const).map((f) => (
             <button
               key={f}
@@ -103,6 +130,7 @@ export function TeacherView({ questions, teacherName, onSubmitAnswer, onEditAnsw
               {f === 'pending' ? t('teacher.filterPending') : f === 'answered' ? t('teacher.filterAnswered') : t('teacher.filterAll')}
             </button>
           ))}
+          </div>
         </div>
       </div>
 

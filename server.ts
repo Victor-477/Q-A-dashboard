@@ -5,20 +5,20 @@ import { randomUUID } from "crypto";
 import { networkInterfaces } from "os";
 import * as XLSX from "xlsx";
 import PDFDocument from "pdfkit";
+import {
+  Question,
+  archiveActiveQuestions,
+  countStoredQuestions,
+  initDatabase,
+  insertQuestion,
+  loadActiveQuestions,
+  loadAllQuestions,
+  updateAnswer
+} from "./db";
 
-interface Question {
-  id: string;
-  topicNumber: number;
-  studentName: string;
-  text: string;
-  answer?: string;
-  previousAnswer?: string;
-  answeredBy?: string;
-  createdAt: string;
-  answeredAt?: string;
-}
-
-const questions: Question[] = [];
+// In-memory mirror of the active board. SQLite is the source of truth; this
+// array is a read cache so SSE fan-out and stats stay allocation-free.
+let questions: Question[] = [];
 const clients = new Set<express.Response>();
 const teacherSessions = new Map<string, { name?: string; createdAt: number }>();
 
@@ -33,21 +33,39 @@ function normalizeName(value: unknown) {
   return typeof value === "string" ? value.trim().slice(0, 80) : "";
 }
 
-function getTeacherSession(req: express.Request) {
-  const authHeader = req.header("authorization") ?? "";
-  const [scheme, token] = authHeader.split(" ");
+// The Electron dashboard is the local operator: it spawned this process, so it
+// gets a per-run token instead of a teacher password. Exports accept either.
+const EXPORT_TOKEN = process.env.QA_EXPORT_TOKEN?.trim() ?? "";
 
-  if (scheme !== "Bearer" || !token) {
-    return null;
+function getBearerToken(req: express.Request) {
+  const [scheme, token] = (req.header("authorization") ?? "").split(" ");
+  return scheme === "Bearer" && token ? token : null;
+}
+
+function isExportAuthorized(req: express.Request) {
+  if (getTeacherSession(req)) {
+    return true;
   }
 
-  return teacherSessions.get(token) ?? null;
+  return Boolean(EXPORT_TOKEN) && getBearerToken(req) === EXPORT_TOKEN;
+}
+
+function getTeacherSession(req: express.Request) {
+  const token = getBearerToken(req);
+  return token ? teacherSessions.get(token) ?? null : null;
 }
 
 async function startServer() {
   const app = express();
   const preferredPort = getPreferredPort(process.env.PORT);
   const HOST = process.env.HOST ?? "0.0.0.0";
+
+  // Restore the board before accepting connections, so the first SSE client
+  // already receives the questions from before the restart.
+  const databaseFile = initDatabase();
+  questions = loadActiveQuestions();
+  console.log(`[server] Database: ${databaseFile}`);
+  console.log(`[server] Restored ${questions.length} active question(s), ${countStoredQuestions()} stored in total.`);
 
   // Increase payload limit for large sessions
   app.use(express.json({ limit: "1mb" }));
@@ -134,7 +152,8 @@ async function startServer() {
       connectedClients: clients.size,
       totalQuestions: questions.length,
       answeredQuestions: questions.filter(q => q.answer).length,
-      pendingQuestions: questions.filter(q => !q.answer).length
+      pendingQuestions: questions.filter(q => !q.answer).length,
+      storedQuestions: countStoredQuestions()
     });
   });
 
@@ -165,16 +184,26 @@ async function startServer() {
     }
 
     const newQuestion: Question = {
-      id: Math.random().toString(36).substring(2, 9),
+      // randomUUID instead of a 7-char random string: ids now have to stay
+      // unique across every session kept in the database, not just one run.
+      id: randomUUID(),
       topicNumber,
       studentName,
       text: text.trim(),
       createdAt: new Date().toISOString()
     };
 
+    try {
+      insertQuestion(newQuestion);
+    } catch (error) {
+      console.error("Failed to persist question:", error);
+      res.status(500).json({ error: "Failed to save question" });
+      return;
+    }
+
     questions.push(newQuestion);
     notifyClients("new_question", newQuestion);
-    
+
     res.status(201).json(newQuestion);
   });
 
@@ -200,15 +229,25 @@ async function startServer() {
       return;
     }
 
-    questions[queryIdx] = {
+    const updated: Question = {
       ...questions[queryIdx],
       answer: answer.trim(),
       answeredBy: teacherSession.name || undefined,
       answeredAt: new Date().toISOString()
     };
-    notifyClients("question_answered", questions[queryIdx]);
 
-    res.json(questions[queryIdx]);
+    try {
+      updateAnswer(updated);
+    } catch (error) {
+      console.error("Failed to persist answer:", error);
+      res.status(500).json({ error: "Failed to save answer" });
+      return;
+    }
+
+    questions[queryIdx] = updated;
+    notifyClients("question_answered", updated);
+
+    res.json(updated);
   });
 
   // PUT to edit an existing answer (stores previous answer)
@@ -235,21 +274,67 @@ async function startServer() {
 
     const oldAnswer = questions[queryIdx].answer;
 
-    questions[queryIdx] = {
+    const updated: Question = {
       ...questions[queryIdx],
       answer: answer.trim(),
       previousAnswer: oldAnswer,
       answeredBy: teacherSession.name || undefined,
       answeredAt: new Date().toISOString()
     };
-    notifyClients("question_answer_edited", questions[queryIdx]);
 
-    res.json(questions[queryIdx]);
+    try {
+      updateAnswer(updated);
+    } catch (error) {
+      console.error("Failed to persist edited answer:", error);
+      res.status(500).json({ error: "Failed to save answer" });
+      return;
+    }
+
+    questions[queryIdx] = updated;
+    notifyClients("question_answer_edited", updated);
+
+    res.json(updated);
   });
 
-  app.get("/api/questions/export", (req, res) => {
+  // Close the current board. Nothing is deleted: rows are archived and stay
+  // reachable through the "include previous sessions" export.
+  app.delete("/api/questions", (req, res) => {
+    const teacherSession = getTeacherSession(req);
+    if (!teacherSession) {
+      res.status(401).json({ error: "Teacher access is required" });
+      return;
+    }
+
+    let archived: number;
     try {
-      const data = questions.map((q, idx) => ({
+      archived = archiveActiveQuestions();
+    } catch (error) {
+      console.error("Failed to archive questions:", error);
+      res.status(500).json({ error: "Failed to clear the board" });
+      return;
+    }
+
+    questions = [];
+    notifyClients("board_cleared", { archived });
+
+    res.json({ archived });
+  });
+
+  // `?all=1` widens an export from the current board to every stored session.
+  const resolveExportScope = (req: express.Request) => {
+    const includeArchived = req.query.all === "1" || req.query.all === "true";
+    return includeArchived ? loadAllQuestions() : questions;
+  };
+
+  app.get("/api/questions/export", (req, res) => {
+    if (!isExportAuthorized(req)) {
+      res.status(401).json({ error: "Teacher access is required" });
+      return;
+    }
+
+    try {
+      const exported = resolveExportScope(req);
+      const data = exported.map((q, idx) => ({
         "#": idx + 1,
         "Tópico": q.topicNumber,
         "Aluno": q.studentName,
@@ -276,7 +361,13 @@ async function startServer() {
   });
 
   app.get("/api/questions/export/pdf", (req, res) => {
+    if (!isExportAuthorized(req)) {
+      res.status(401).json({ error: "Teacher access is required" });
+      return;
+    }
+
     try {
+      const exported = resolveExportScope(req);
       const doc = new PDFDocument({ margin: 50, size: "A4", bufferPages: true });
 
       // Pipe to response
@@ -284,8 +375,8 @@ async function startServer() {
       res.setHeader("Content-Disposition", `attachment; filename="qa-report-${Date.now()}.pdf"`);
       doc.pipe(res);
 
-      const totalQuestions = questions.length;
-      const totalAnswered = questions.filter(q => q.answer).length;
+      const totalQuestions = exported.length;
+      const totalAnswered = exported.filter(q => q.answer).length;
       const totalPending = totalQuestions - totalAnswered;
 
       // Header Banner (dark indigo background color)
@@ -324,10 +415,10 @@ async function startServer() {
       doc.moveDown(1.2);
 
       // List of questions
-      if (questions.length === 0) {
+      if (exported.length === 0) {
         doc.fillColor("#6b7280").font("Helvetica-Oblique").fontSize(11).text("Nenhuma pergunta registrada nesta sessão.", 50, doc.y + 10);
       } else {
-        questions.forEach((q, idx) => {
+        exported.forEach((q, idx) => {
           const cardHeight = calculateCardHeight(doc, q);
 
           if (doc.y + cardHeight > 750) {

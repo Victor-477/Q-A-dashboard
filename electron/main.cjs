@@ -1,6 +1,7 @@
 const { app, BrowserWindow, Menu, ipcMain, shell, dialog } = require('electron');
 const { spawn } = require('child_process');
 const { networkInterfaces } = require('os');
+const { randomUUID } = require('crypto');
 const path = require('path');
 
 app.setName('Q&A Dashboard');
@@ -10,6 +11,11 @@ Menu.setApplicationMenu(null);
 let mainWindow;
 let siteProcess = null;
 let serviceState = createInitialState();
+
+// Credential the dashboard uses to reach the protected export endpoints.
+// Regenerated on every start and deliberately kept out of serviceState, which
+// is broadcast to the renderer.
+let exportToken = null;
 
 function createInitialState() {
   return {
@@ -75,6 +81,13 @@ function getLanAddresses() {
     .map(details => details.address);
 }
 
+// Questions must outlive the process, so the database cannot live inside the
+// portable executable's extraction folder (wiped on every launch) nor inside
+// userData (pointed at temp above). %APPDATA%/qa-dashboard is stable.
+function defaultDataDirectory() {
+  return path.join(app.getPath('appData'), 'qa-dashboard', 'data');
+}
+
 function normalizeConfig(config = {}) {
   const port = Number(config.port || 3000);
   const safePort = Number.isInteger(port) && port > 0 && port <= 65535 ? port : 3000;
@@ -82,6 +95,7 @@ function normalizeConfig(config = {}) {
   const requestedMode = config.mode === 'production' ? 'production' : 'development';
 
   return {
+    dataDirectory: String(config.dataDirectory || defaultDataDirectory()).trim() || defaultDataDirectory(),
     appName: String(config.appName || 'Q&A Dashboard').trim() || 'Q&A Dashboard',
     port: safePort,
     host: String(config.host || '0.0.0.0').trim() || '0.0.0.0',
@@ -150,6 +164,8 @@ function startService(configInput) {
   const config = normalizeConfig(configInput);
   const { command, args, env, cwd } = buildServerCommand(config);
 
+  exportToken = randomUUID();
+
   serviceState = {
     ...createInitialState(),
     status: 'starting',
@@ -170,6 +186,8 @@ function startService(configInput) {
         ...env,
         PORT: String(config.port),
         HOST: config.host,
+        QA_DATA_DIR: config.dataDirectory,
+        QA_EXPORT_TOKEN: exportToken,
         TEACHER_PASSWORDS: config.teacherPasswords,
         ENABLE_AUTO_TRANSLATE: config.enableAutoTranslate ? 'true' : 'false',
         NODE_ENV: config.mode === 'production' ? 'production' : ''
@@ -178,6 +196,7 @@ function startService(configInput) {
     });
   } catch (error) {
     siteProcess = null;
+    exportToken = null;
     serviceState.status = 'stopped';
     serviceState.exitCode = 'spawn-error';
     pushLog(error.message, 'error');
@@ -209,6 +228,7 @@ function startService(configInput) {
 
   siteProcess.on('exit', code => {
     siteProcess = null;
+    exportToken = null;
     serviceState = {
       ...serviceState,
       status: 'stopped',
@@ -244,11 +264,12 @@ ipcMain.handle('service:open-url', (_event, url) => {
     shell.openExternal(url);
   }
 });
-ipcMain.handle('service:download-log', async () => {
+ipcMain.handle('service:download-log', async (_event, options = {}) => {
   if (!serviceState.port || serviceState.status !== 'running') {
     throw new Error('Server is not running');
   }
-  
+
+  const scope = options.includeArchived ? '?all=1' : '';
   const defaultPath = path.join(app.getPath('downloads'), `qa-log-${Date.now()}.xlsx`);
   const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
     title: 'Salvar Log de Perguntas',
@@ -263,8 +284,10 @@ ipcMain.handle('service:download-log', async () => {
   }
 
   try {
-    const url = `http://localhost:${serviceState.port}/api/questions/export`;
-    const response = await fetch(url);
+    const url = `http://localhost:${serviceState.port}/api/questions/export${scope}`;
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${exportToken}` }
+    });
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -279,11 +302,12 @@ ipcMain.handle('service:download-log', async () => {
     throw error;
   }
 });
-ipcMain.handle('service:download-pdf', async () => {
+ipcMain.handle('service:download-pdf', async (_event, options = {}) => {
   if (!serviceState.port || serviceState.status !== 'running') {
     throw new Error('Server is not running');
   }
-  
+
+  const scope = options.includeArchived ? '?all=1' : '';
   const defaultPath = path.join(app.getPath('downloads'), `qa-report-${Date.now()}.pdf`);
   const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
     title: 'Salvar Relatório em PDF',
@@ -298,8 +322,10 @@ ipcMain.handle('service:download-pdf', async () => {
   }
 
   try {
-    const url = `http://localhost:${serviceState.port}/api/questions/export/pdf`;
-    const response = await fetch(url);
+    const url = `http://localhost:${serviceState.port}/api/questions/export/pdf${scope}`;
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${exportToken}` }
+    });
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }

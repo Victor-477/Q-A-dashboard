@@ -51,7 +51,7 @@ export default function App() {
   const [teacherPassword, setTeacherPassword] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const { questions, loading, error, notifications, submitQuestion, submitAnswer, editAnswer } = useQuestions();
+  const { questions, loading, error, notifications, submitQuestion, submitAnswer, editAnswer, clearBoard } = useQuestions();
 
   const pageTitle = role === 'teacher' ? t('role.teacher') : role === 'student' ? t('role.student') : t('role.home');
   const isTeacherAuthenticated = role === 'teacher' && Boolean(teacherSession?.token);
@@ -146,6 +146,22 @@ export default function App() {
 
     try {
       await editAnswer(id, answer, teacherSession.token);
+    } catch (err) {
+      if (err instanceof Error && err.message === 'Teacher access has expired') {
+        window.localStorage.removeItem(TEACHER_SESSION_KEY);
+        setTeacherSession(null);
+      }
+      throw err;
+    }
+  };
+
+  const handleClearBoard = async () => {
+    if (!teacherSession?.token) {
+      throw new Error('Teacher is not authenticated');
+    }
+
+    try {
+      await clearBoard(teacherSession.token);
     } catch (err) {
       if (err instanceof Error && err.message === 'Teacher access has expired') {
         window.localStorage.removeItem(TEACHER_SESSION_KEY);
@@ -333,6 +349,7 @@ export default function App() {
                   teacherName={teacherSession?.name}
                   onSubmitAnswer={handleSubmitAnswer}
                   onEditAnswer={handleEditAnswer}
+                  onClearBoard={handleClearBoard}
                 />
               )}
             </motion.div>

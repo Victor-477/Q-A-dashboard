@@ -86,6 +86,11 @@ export function useQuestions() {
       addNotification(t('notify.answerEdited', { topic: data.topicNumber }));
     });
 
+    eventSource.addEventListener('board_cleared', () => {
+      setQuestions([]);
+      addNotification(t('notify.boardCleared'));
+    });
+
     eventSource.onerror = () => {
       setError(t('error.sseConnection'));
     };
@@ -189,5 +194,15 @@ export function useQuestions() {
     }
   };
 
-  return { questions: translatedQuestions, loading, error, notifications, submitQuestion, submitAnswer, editAnswer };
+  const clearBoard = async (teacherToken: string) => {
+    const res = await fetch('/api/questions', {
+      method: 'DELETE',
+      headers: { Authorization: `Bearer ${teacherToken}` }
+    });
+    if (!res.ok) {
+      throw new Error(res.status === 401 ? 'Teacher access has expired' : 'Could not clear the board');
+    }
+  };
+
+  return { questions: translatedQuestions, loading, error, notifications, submitQuestion, submitAnswer, editAnswer, clearBoard };
 }

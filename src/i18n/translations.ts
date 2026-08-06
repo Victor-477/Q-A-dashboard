@@ -90,10 +90,14 @@ type TranslationKeys = {
   'teacher.showPrevious': string;
   'teacher.hidePrevious': string;
   'teacher.previousVersion': string;
+  'teacher.clearBoard': string;
+  'teacher.clearBoardConfirm': string;
+  'teacher.clearBoardError': string;
   // Notifications
   'notify.newQuestion': string;
   'notify.questionAnswered': string;
   'notify.answerEdited': string;
+  'notify.boardCleared': string;
   // SSE error
   'error.sseConnection': string;
   // Footer
@@ -173,9 +177,13 @@ const en: TranslationKeys = {
   'teacher.showPrevious': 'Show previous version',
   'teacher.hidePrevious': 'Hide previous version',
   'teacher.previousVersion': 'Previous version',
+  'teacher.clearBoard': 'Clear board',
+  'teacher.clearBoardConfirm': 'Clear the board for a new class? The {count} questions on screen stay saved in the database and remain available in the full export.',
+  'teacher.clearBoardError': 'Could not clear the board.',
   'notify.newQuestion': 'New question posted - Topic {topic}',
   'notify.questionAnswered': 'The question for topic {topic} has been answered!',
   'notify.answerEdited': 'The answer for topic {topic} has been updated!',
+  'notify.boardCleared': 'The board was cleared for a new session.',
   'error.sseConnection': 'Real-time connection issue. Trying to reconnect...',
   'footer.text': 'Control Panel - Q&A Dashboard v1.1.0 - Made By',
 };
@@ -249,9 +257,13 @@ const pt: TranslationKeys = {
   'teacher.showPrevious': 'Mostrar versão anterior',
   'teacher.hidePrevious': 'Ocultar versão anterior',
   'teacher.previousVersion': 'Versão anterior',
+  'teacher.clearBoard': 'Limpar quadro',
+  'teacher.clearBoardConfirm': 'Limpar o quadro para uma nova aula? As {count} perguntas na tela continuam salvas no banco de dados e seguem disponíveis na exportação completa.',
+  'teacher.clearBoardError': 'Não foi possível limpar o quadro.',
   'notify.newQuestion': 'Nova pergunta publicada - Tópico {topic}',
   'notify.questionAnswered': 'A pergunta do tópico {topic} foi respondida!',
   'notify.answerEdited': 'A resposta do tópico {topic} foi atualizada!',
+  'notify.boardCleared': 'O quadro foi limpo para uma nova sessão.',
   'error.sseConnection': 'Problema na conexão em tempo real. Tentando reconectar...',
   'footer.text': 'Painel de Controle - Q&A Dashboard v1.1.0 - Feito por',
 };
@@ -325,9 +337,13 @@ const es: TranslationKeys = {
   'teacher.showPrevious': 'Mostrar versión anterior',
   'teacher.hidePrevious': 'Ocultar versión anterior',
   'teacher.previousVersion': 'Versión anterior',
+  'teacher.clearBoard': 'Limpiar pizarra',
+  'teacher.clearBoardConfirm': '¿Limpiar la pizarra para una nueva clase? Las {count} preguntas en pantalla siguen guardadas en la base de datos y continúan disponibles en la exportación completa.',
+  'teacher.clearBoardError': 'No se pudo limpiar la pizarra.',
   'notify.newQuestion': 'Nueva pregunta publicada - Tema {topic}',
   'notify.questionAnswered': '¡La pregunta del tema {topic} fue respondida!',
   'notify.answerEdited': '¡La respuesta del tema {topic} fue actualizada!',
+  'notify.boardCleared': 'La pizarra se limpió para una nueva sesión.',
   'error.sseConnection': 'Problema de conexión en tiempo real. Intentando reconectar...',
   'footer.text': 'Panel de Control - Q&A Dashboard v1.1.0 - Hecho por',
 };
@@ -401,9 +417,13 @@ const de: TranslationKeys = {
   'teacher.showPrevious': 'Vorherige Version anzeigen',
   'teacher.hidePrevious': 'Vorherige Version ausblenden',
   'teacher.previousVersion': 'Vorherige Version',
+  'teacher.clearBoard': 'Tafel leeren',
+  'teacher.clearBoardConfirm': 'Die Tafel für eine neue Stunde leeren? Die {count} angezeigten Fragen bleiben in der Datenbank gespeichert und stehen im vollständigen Export weiterhin zur Verfügung.',
+  'teacher.clearBoardError': 'Die Tafel konnte nicht geleert werden.',
   'notify.newQuestion': 'Neue Frage veröffentlicht - Thema {topic}',
   'notify.questionAnswered': 'Die Frage zu Thema {topic} wurde beantwortet!',
   'notify.answerEdited': 'Die Antwort zu Thema {topic} wurde aktualisiert!',
+  'notify.boardCleared': 'Die Tafel wurde für eine neue Sitzung geleert.',
   'error.sseConnection': 'Echtzeit-Verbindungsproblem. Versuche, die Verbindung wiederherzustellen...',
   'footer.text': 'Kontrollzentrum - Q&A Dashboard v1.1.0 - Erstellt von',
 };
@@ -477,9 +497,13 @@ const ja: TranslationKeys = {
   'teacher.showPrevious': '以前のバージョンを表示',
   'teacher.hidePrevious': '以前のバージョンを非表示',
   'teacher.previousVersion': '以前のバージョン',
+  'teacher.clearBoard': 'ボードをクリア',
+  'teacher.clearBoardConfirm': '新しい授業のためにボードをクリアしますか？表示中の {count} 件の質問はデータベースに保存されたままで、全体エクスポートから引き続き取得できます。',
+  'teacher.clearBoardError': 'ボードをクリアできませんでした。',
   'notify.newQuestion': '新しい質問が投稿されました - トピック {topic}',
   'notify.questionAnswered': 'トピック {topic} の質問が回答されました！',
   'notify.answerEdited': 'トピック {topic} の回答が更新されました！',
+  'notify.boardCleared': '新しいセッションのためにボードがクリアされました。',
   'error.sseConnection': 'リアルタイム接続の問題。再接続を試みています...',
   'footer.text': 'コントロールパネル - Q&A Dashboard v1.1.0 - 作成者',
 };
