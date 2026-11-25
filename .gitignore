@@ -4,6 +4,7 @@ data/
 *.db
 *.db-wal
 *.db-shm
+PROJECT-CONTEXT.md
 
 # TLS material. The private key must never reach version control.
 *.pem
