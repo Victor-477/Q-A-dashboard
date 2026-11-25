@@ -99,11 +99,20 @@ function normalizeConfig(config = {}) {
     appName: String(config.appName || 'Q&A Dashboard').trim() || 'Q&A Dashboard',
     port: safePort,
     host: String(config.host || '0.0.0.0').trim() || '0.0.0.0',
-    teacherPasswords: String(config.teacherPasswords || 'professor123').trim() || 'professor123',
+    teacherPasswords: String(config.teacherPasswords || '').trim(),
     workingDirectory: String(config.workingDirectory || app.getAppPath()).trim() || app.getAppPath(),
     mode: app.isPackaged ? defaultMode : requestedMode,
+    // TLS is on unless explicitly disabled: without it the teacher password
+    // crosses the classroom network in cleartext.
+    enableTls: config.enableTls !== false,
+    translateUrl: String(config.translateUrl || '').trim(),
     enableAutoTranslate: config.enableAutoTranslate !== false
   };
+}
+
+/** http or https, matching whether the spawned server will use TLS. */
+function scheme(config) {
+  return config.enableTls ? 'https' : 'http';
 }
 
 function buildServerCommand(config) {
@@ -172,8 +181,8 @@ function startService(configInput) {
     config,
     startedAt: new Date().toISOString(),
     urls: [
-      `http://localhost:${config.port}`,
-      ...getLanAddresses().map(address => `http://${address}:${config.port}`)
+      `${scheme(config)}://localhost:${config.port}`,
+      ...getLanAddresses().map(address => `${scheme(config)}://${address}:${config.port}`)
     ]
   };
   sendState();
@@ -188,7 +197,12 @@ function startService(configInput) {
         HOST: config.host,
         QA_DATA_DIR: config.dataDirectory,
         QA_EXPORT_TOKEN: exportToken,
-        TEACHER_PASSWORDS: config.teacherPasswords,
+        // Empty means "let the server use the password stored in its database",
+        // which it generates on first run. There is no password in the source.
+        TEACHER_PASSWORDS: config.teacherPasswords || '',
+        QA_TLS: config.enableTls ? 'auto' : 'off',
+        // Empty disables translation entirely; no third party is contacted.
+        QA_TRANSLATE_URL: config.translateUrl || '',
         ENABLE_AUTO_TRANSLATE: config.enableAutoTranslate ? 'true' : 'false',
         NODE_ENV: config.mode === 'production' ? 'production' : ''
       },
@@ -256,6 +270,68 @@ function stopService() {
   return serviceState;
 }
 
+/**
+ * Fetches a path from the server this panel started.
+ *
+ * Written against the http/https modules rather than fetch() because the
+ * server uses a self-signed certificate: rejectUnauthorized must be off for it,
+ * and that is only acceptable because the request never leaves the loopback
+ * interface and carries a token this process generated.
+ */
+function fetchLocal(requestPath) {
+  return new Promise((resolve, reject) => {
+    if (!serviceState.port) {
+      reject(new Error('Server is not running'));
+      return;
+    }
+
+    const secure = serviceState.config?.enableTls !== false;
+    const transport = secure ? require('https') : require('http');
+
+    const request = transport.request(
+      {
+        host: '127.0.0.1',
+        port: serviceState.port,
+        path: requestPath,
+        method: 'GET',
+        headers: { Authorization: `Bearer ${exportToken}` },
+        rejectUnauthorized: false
+      },
+      response => {
+        if (response.statusCode !== 200) {
+          response.resume();
+          reject(new Error(`HTTP error! status: ${response.statusCode}`));
+          return;
+        }
+        const chunks = [];
+        response.on('data', chunk => chunks.push(chunk));
+        response.on('end', () => resolve(Buffer.concat(chunks)));
+      }
+    );
+
+    request.on('error', reject);
+    request.end();
+  });
+}
+
+/**
+ * The panel's own pages fetch /api/stats from the server over TLS. Chromium
+ * rejects the self-signed certificate by default, so trust it for loopback
+ * only — never for anything else.
+ */
+app.on('certificate-error', (event, _webContents, url, _error, _certificate, callback) => {
+  const port = serviceState.port;
+  const trusted = port
+    && (url.startsWith(`https://localhost:${port}`) || url.startsWith(`https://127.0.0.1:${port}`));
+
+  if (trusted) {
+    event.preventDefault();
+    callback(true);
+    return;
+  }
+  callback(false);
+});
+
 ipcMain.handle('service:get-state', () => serviceState);
 ipcMain.handle('service:start', (_event, config) => startService(config));
 ipcMain.handle('service:stop', () => stopService());
@@ -284,15 +360,7 @@ ipcMain.handle('service:download-log', async (_event, options = {}) => {
   }
 
   try {
-    const url = `http://localhost:${serviceState.port}/api/questions/export${scope}`;
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${exportToken}` }
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const buffer = await fetchLocal(`/api/questions/export${scope}`);
     
     const fs = require('fs');
     await fs.promises.writeFile(filePath, buffer);
@@ -322,15 +390,7 @@ ipcMain.handle('service:download-pdf', async (_event, options = {}) => {
   }
 
   try {
-    const url = `http://localhost:${serviceState.port}/api/questions/export/pdf${scope}`;
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${exportToken}` }
-    });
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    const arrayBuffer = await response.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const buffer = await fetchLocal(`/api/questions/export/pdf${scope}`);
     
     const fs = require('fs');
     await fs.promises.writeFile(filePath, buffer);

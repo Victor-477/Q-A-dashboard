@@ -2,30 +2,50 @@ import { useEffect, useState, useCallback } from 'react';
 import { Question } from '../types';
 import { useI18n } from '../i18n/I18nContext';
 
-// Cache for translations to prevent duplicate network calls
+// Per-tab cache, so switching locales back and forth does not re-request.
+// The server keeps its own shared cache; this one only avoids round trips.
 const translationCache = new Map<string, string>();
 
-async function translateText(text: string, targetLocale: string): Promise<string> {
-  if (!text || !text.trim()) return text;
-  
+/**
+ * Translates a batch of strings through our own server.
+ *
+ * This used to call translate.googleapis.com directly from the browser, which
+ * meant an undocumented endpoint, every student's device sending the class's
+ * questions to Google, and thirty devices requesting the same strings. The
+ * server now owns the provider and the cache; it answers 404 when no provider
+ * is configured, in which case the originals are returned unchanged.
+ */
+async function translateBatch(texts: string[], targetLocale: string): Promise<string[]> {
+  if (texts.length === 0) return texts;
+
   const target = targetLocale || 'en';
   try {
-    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=${target}&dt=t&q=${encodeURIComponent(text)}`;
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('Translation failed');
-    const json = await res.json();
-    const translated = json[0].map((item: any) => item[0]).join('');
-    return translated;
+    const res = await fetch('/api/translate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ texts, target })
+    });
+    if (!res.ok) throw new Error(`Translation failed (${res.status})`);
+
+    const data = await res.json();
+    if (!Array.isArray(data.translations) || data.translations.length !== texts.length) {
+      throw new Error('Malformed translation response');
+    }
+    return data.translations.map((value: unknown, index: number) =>
+      typeof value === 'string' && value ? value : texts[index]
+    );
   } catch (err) {
-    console.error('Translation error:', err);
-    return text;
+    console.warn('Translation unavailable, showing the original text:', err);
+    return texts;
   }
 }
 
 export function useQuestions() {
   const [questions, setQuestions] = useState<Question[]>([]);
   const [translatedQuestions, setTranslatedQuestions] = useState<Question[]>([]);
-  const [autoTranslateEnabled, setAutoTranslateEnabled] = useState(true);
+  // Starts false: translation is opt-in server-side, so nothing is requested
+  // until /api/config confirms a provider is configured.
+  const [autoTranslateEnabled, setAutoTranslateEnabled] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [notifications, setNotifications] = useState<{ id: string; message: string }[]>([]);
@@ -47,7 +67,7 @@ export function useQuestions() {
         throw new Error('Not OK');
       })
       .then(data => {
-        setAutoTranslateEnabled(data.enableAutoTranslate !== false);
+        setAutoTranslateEnabled(data.enableAutoTranslate === true);
       })
       .catch(err => {
         console.warn('Failed to load server translation config:', err);
@@ -100,7 +120,7 @@ export function useQuestions() {
     };
   }, [addNotification, t]);
 
-  // Translate questions state on change or locale change
+  // Translate the board whenever it changes or the locale does.
   useEffect(() => {
     let active = true;
 
@@ -110,38 +130,34 @@ export function useQuestions() {
     }
 
     async function translateAll() {
-      const translated = await Promise.all(
-        questions.map(async (q) => {
-          const textKey = `${q.text}::${locale}`;
-          const answerKey = q.answer ? `${q.answer}::${locale}` : '';
+      // Collect every distinct string still missing from the cache, so one
+      // request covers the whole board instead of one request per field.
+      const pending: string[] = [];
+      const seen = new Set<string>();
 
-          let translatedText = q.text;
-          if (q.text) {
-            if (translationCache.has(textKey)) {
-              translatedText = translationCache.get(textKey)!;
-            } else {
-              translatedText = await translateText(q.text, locale);
-              translationCache.set(textKey, translatedText);
-            }
-          }
+      for (const q of questions) {
+        for (const value of [q.text, q.answer]) {
+          if (!value) continue;
+          const key = `${value}::${locale}`;
+          if (translationCache.has(key) || seen.has(key)) continue;
+          seen.add(key);
+          pending.push(value);
+        }
+      }
 
-          let translatedAnswer = q.answer;
-          if (q.answer) {
-            if (translationCache.has(answerKey)) {
-              translatedAnswer = translationCache.get(answerKey)!;
-            } else {
-              translatedAnswer = await translateText(q.answer, locale);
-              translationCache.set(answerKey, translatedAnswer);
-            }
-          }
+      if (pending.length > 0) {
+        const translations = await translateBatch(pending, locale);
+        if (!active) return;
+        pending.forEach((original, index) => {
+          translationCache.set(`${original}::${locale}`, translations[index]);
+        });
+      }
 
-          return {
-            ...q,
-            text: translatedText,
-            answer: translatedAnswer,
-          };
-        })
-      );
+      const translated = questions.map((q) => ({
+        ...q,
+        text: q.text ? translationCache.get(`${q.text}::${locale}`) ?? q.text : q.text,
+        answer: q.answer ? translationCache.get(`${q.answer}::${locale}`) ?? q.answer : q.answer,
+      }));
 
       if (active) {
         setTranslatedQuestions(translated);

@@ -4,6 +4,9 @@ data/
 *.db
 *.db-wal
 *.db-shm
+
+# TLS material. The private key must never reach version control.
+*.pem
 dist/
 coverage/
 release/

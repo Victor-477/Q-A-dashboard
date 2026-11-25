@@ -80,7 +80,109 @@ export function initDatabase() {
 
   db.exec("CREATE INDEX IF NOT EXISTS idx_questions_archived ON questions (archived, created_at)");
 
+  // Teacher sessions live here rather than in a Map so a restart does not log
+  // the teacher out mid-class. Unlike the questions table they expire, so a
+  // stolen or forgotten token stops working on its own.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS teacher_sessions (
+      token      TEXT PRIMARY KEY,
+      name       TEXT,
+      created_at TEXT NOT NULL,
+      expires_at TEXT NOT NULL
+    )
+  `);
+
+  db.exec("CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON teacher_sessions (expires_at)");
+
+  // Small key/value table for values that must survive a restart but are not
+  // questions, such as the generated teacher password.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS settings (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    )
+  `);
+
+  purgeExpiredSessions();
+
   return file;
+}
+
+// ---------------------------------------------------------------- settings
+
+export function readSetting(key: string): string | null {
+  const row = requireDb().prepare("SELECT value FROM settings WHERE key = ?").get(key) as Row | undefined;
+  return row?.value ?? null;
+}
+
+export function writeSetting(key: string, value: string) {
+  requireDb()
+    .prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+    .run(key, value);
+}
+
+// -------------------------------------------------------- teacher sessions
+
+export interface TeacherSession {
+  token: string;
+  name?: string;
+  createdAt: string;
+  expiresAt: string;
+}
+
+function toSession(row: Row): TeacherSession {
+  return {
+    token: String(row.token),
+    name: row.name ?? undefined,
+    createdAt: String(row.created_at),
+    expiresAt: String(row.expires_at)
+  };
+}
+
+export function insertSession(session: TeacherSession) {
+  requireDb()
+    .prepare("INSERT INTO teacher_sessions (token, name, created_at, expires_at) VALUES (?, ?, ?, ?)")
+    .run(session.token, session.name ?? null, session.createdAt, session.expiresAt);
+}
+
+/**
+ * Looks up a session, treating an expired one as absent and deleting it on the
+ * way out so the table does not grow without bound.
+ */
+export function findSession(token: string): TeacherSession | null {
+  const row = requireDb()
+    .prepare("SELECT * FROM teacher_sessions WHERE token = ?")
+    .get(token) as Row | undefined;
+
+  if (!row) {
+    return null;
+  }
+
+  const session = toSession(row);
+  if (Date.parse(session.expiresAt) <= Date.now()) {
+    deleteSession(token);
+    return null;
+  }
+  return session;
+}
+
+export function deleteSession(token: string) {
+  requireDb().prepare("DELETE FROM teacher_sessions WHERE token = ?").run(token);
+}
+
+/** Drops every session already past its expiry. Returns how many were removed. */
+export function purgeExpiredSessions() {
+  const result = requireDb()
+    .prepare("DELETE FROM teacher_sessions WHERE expires_at <= ?")
+    .run(new Date().toISOString());
+  return Number(result.changes);
+}
+
+export function countActiveSessions() {
+  const row = requireDb()
+    .prepare("SELECT COUNT(*) AS total FROM teacher_sessions WHERE expires_at > ?")
+    .get(new Date().toISOString()) as Row | undefined;
+  return Number(row?.total ?? 0);
 }
 
 /** Questions on the current board, oldest first (the order the UI expects). */

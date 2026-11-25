@@ -1,33 +1,85 @@
 import "dotenv/config";
 import express from "express";
+import fs from "fs";
+import http from "http";
+import https from "https";
 import path from "path";
-import { randomUUID } from "crypto";
-import { networkInterfaces } from "os";
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from "crypto";
 import * as XLSX from "xlsx";
 import PDFDocument from "pdfkit";
 import {
   Question,
+  TeacherSession,
   archiveActiveQuestions,
   countStoredQuestions,
+  deleteSession,
+  findSession,
   initDatabase,
   insertQuestion,
+  insertSession,
   loadActiveQuestions,
   loadAllQuestions,
-  updateAnswer
+  purgeExpiredSessions,
+  readSetting,
+  updateAnswer,
+  writeSetting
 } from "./db";
+import { ensureCertificate, getLanAddresses, isTlsEnabled } from "./tls";
+import { isTranslationEnabled, translateBatch, translationProviderHost } from "./translate";
 
 // In-memory mirror of the active board. SQLite is the source of truth; this
 // array is a read cache so SSE fan-out and stats stay allocation-free.
 let questions: Question[] = [];
 const clients = new Set<express.Response>();
-const teacherSessions = new Map<string, { name?: string; createdAt: number }>();
 
-// Edit this list manually to define one or more teacher passwords.
-// You can also override it with an environment variable: TEACHER_PASSWORDS="password1,password2"
-const TEACHER_PASSWORDS = (process.env.TEACHER_PASSWORDS ?? "professor123")
-  .split(",")
-  .map(password => password.trim())
-  .filter(Boolean);
+/**
+ * How long a teacher stays logged in. Sessions outlive a restart (they are in
+ * SQLite) but not a school day, so an abandoned token stops working by itself.
+ */
+const SESSION_TTL_MS = Number(process.env.QA_SESSION_TTL_HOURS ?? 12) * 60 * 60 * 1000;
+
+/**
+ * Accepted teacher passwords.
+ *
+ * There is deliberately no password in the source. TEACHER_PASSWORDS wins when
+ * set; otherwise one is generated on first run, stored in the database and
+ * printed at startup, so every install has a different secret.
+ */
+let TEACHER_PASSWORDS: string[] = [];
+
+function parsePasswords(raw: string) {
+  return raw
+    .split(",")
+    .map(password => password.trim())
+    .filter(Boolean);
+}
+
+/** Readable, high-entropy password: 4 groups of 4 (~62 bits). */
+function generatePassword() {
+  const alphabet = "abcdefghjkmnpqrstuvwxyz23456789"; // no look-alike characters
+  const bytes = randomBytes(16);
+  const chars = [...bytes].map(byte => alphabet[byte % alphabet.length]);
+  return [0, 4, 8, 12].map(start => chars.slice(start, start + 4).join("")).join("-");
+}
+
+function resolveTeacherPasswords() {
+  const fromEnv = parsePasswords(process.env.TEACHER_PASSWORDS ?? "");
+  if (fromEnv.length > 0) {
+    TEACHER_PASSWORDS = fromEnv;
+    return { passwords: fromEnv, generated: false };
+  }
+
+  const stored = readSetting("teacher_password");
+  if (stored) {
+    TEACHER_PASSWORDS = [stored];
+    return { passwords: [stored], generated: false };
+  }
+
+  const created = generatePassword();
+  writeSetting("teacher_password", created);
+  TEACHER_PASSWORDS = [created];
+  return { passwords: [created], generated: true };
+}
 
 function normalizeName(value: unknown) {
   return typeof value === "string" ? value.trim().slice(0, 80) : "";
@@ -42,6 +94,28 @@ function getBearerToken(req: express.Request) {
   return scheme === "Bearer" && token ? token : null;
 }
 
+/**
+ * Constant-time membership test, so the time taken to reject a wrong password
+ * does not reveal how much of it was correct.
+ */
+function timingSafeIncludes(candidates: string[], value: string) {
+  const supplied = Buffer.from(value);
+  let matched = false;
+
+  for (const candidate of candidates) {
+    const expected = Buffer.from(candidate);
+    // timingSafeEqual throws on length mismatch, which would itself leak the
+    // length, so compare fixed-size digests of equal length instead.
+    const a = createHash("sha256").update(supplied).digest();
+    const b = createHash("sha256").update(expected).digest();
+    if (timingSafeEqual(a, b)) {
+      matched = true;
+    }
+  }
+
+  return matched;
+}
+
 function isExportAuthorized(req: express.Request) {
   if (getTeacherSession(req)) {
     return true;
@@ -50,9 +124,9 @@ function isExportAuthorized(req: express.Request) {
   return Boolean(EXPORT_TOKEN) && getBearerToken(req) === EXPORT_TOKEN;
 }
 
-function getTeacherSession(req: express.Request) {
+function getTeacherSession(req: express.Request): TeacherSession | null {
   const token = getBearerToken(req);
-  return token ? teacherSessions.get(token) ?? null : null;
+  return token ? findSession(token) : null;
 }
 
 async function startServer() {
@@ -66,6 +140,40 @@ async function startServer() {
   questions = loadActiveQuestions();
   console.log(`[server] Database: ${databaseFile}`);
   console.log(`[server] Restored ${questions.length} active question(s), ${countStoredQuestions()} stored in total.`);
+
+  const { passwords, generated } = resolveTeacherPasswords();
+  if (generated) {
+    console.log("");
+    console.log("  ┌──────────────────────────────────────────────┐");
+    console.log("  │  TEACHER PASSWORD (generated on first run)   │");
+    console.log(`  │           ${passwords[0].padEnd(35)}│`);
+    console.log("  │  Change it in the dashboard or with          │");
+    console.log("  │  TEACHER_PASSWORDS in the environment.       │");
+    console.log("  └──────────────────────────────────────────────┘");
+    console.log("");
+  } else {
+    console.log(`[server] Teacher password: ${passwords.length} configured (not shown).`);
+  }
+
+  // Old sessions are dropped at boot and hourly thereafter, so the table does
+  // not accumulate tokens from past classes.
+  const purged = purgeExpiredSessions();
+  if (purged > 0) {
+    console.log(`[server] Purged ${purged} expired teacher session(s).`);
+  }
+  setInterval(() => {
+    try {
+      purgeExpiredSessions();
+    } catch (error) {
+      console.error("Failed to purge expired sessions:", error);
+    }
+  }, 60 * 60 * 1000).unref();
+
+  if (isTranslationEnabled()) {
+    console.log(`[server] Translation provider: ${translationProviderHost()}`);
+  } else {
+    console.log("[server] Translation: disabled (set QA_TRANSLATE_URL to enable).");
+  }
 
   // Increase payload limit for large sessions
   app.use(express.json({ limit: "1mb" }));
@@ -121,26 +229,29 @@ async function startServer() {
     const { password } = req.body;
     const teacherName = normalizeName(req.body.name);
 
-    if (typeof password !== "string" || !TEACHER_PASSWORDS.includes(password)) {
+    if (typeof password !== "string" || !timingSafeIncludes(TEACHER_PASSWORDS, password)) {
       res.status(401).json({ error: "Invalid teacher password" });
       return;
     }
 
-    const token = randomUUID();
-    teacherSessions.set(token, {
+    const now = Date.now();
+    const session: TeacherSession = {
+      token: randomUUID(),
       name: teacherName || undefined,
-      createdAt: Date.now()
-    });
+      createdAt: new Date(now).toISOString(),
+      expiresAt: new Date(now + SESSION_TTL_MS).toISOString()
+    };
 
-    res.json({ token, name: teacherName || "" });
+    insertSession(session);
+
+    res.json({ token: session.token, name: teacherName || "", expiresAt: session.expiresAt });
   });
 
   app.post("/api/teacher/logout", (req, res) => {
-    const authHeader = req.header("authorization") ?? "";
-    const [, token] = authHeader.split(" ");
+    const token = getBearerToken(req);
 
     if (token) {
-      teacherSessions.delete(token);
+      deleteSession(token);
     }
 
     res.status(204).send();
@@ -158,9 +269,48 @@ async function startServer() {
   });
 
   app.get("/api/config", (req, res) => {
+    // Translation now happens on the server, so the client only needs to know
+    // whether asking for it is worthwhile at all.
     res.json({
-      enableAutoTranslate: process.env.ENABLE_AUTO_TRANSLATE !== 'false'
+      enableAutoTranslate: isTranslationEnabled() && process.env.ENABLE_AUTO_TRANSLATE !== "false"
     });
+  });
+
+  /**
+   * Translates a batch of strings through the configured provider.
+   *
+   * Clients used to call an undocumented Google endpoint directly, which leaked
+   * the class's questions from every student device. Routing it here means one
+   * request per distinct string for the whole room, a cache that is shared, and
+   * no third party unless the operator explicitly configured one.
+   */
+  app.post("/api/translate", async (req, res) => {
+    if (!isTranslationEnabled() || process.env.ENABLE_AUTO_TRANSLATE === "false") {
+      res.status(404).json({ error: "Translation is not configured on this server" });
+      return;
+    }
+
+    const { texts, target } = req.body ?? {};
+
+    if (
+      !Array.isArray(texts) ||
+      texts.length === 0 ||
+      texts.length > 200 ||
+      !texts.every(text => typeof text === "string" && text.length <= 2000) ||
+      typeof target !== "string" ||
+      !/^[a-z]{2}(-[A-Za-z0-9]{2,8})?$/.test(target)
+    ) {
+      res.status(400).json({ error: "Invalid payload" });
+      return;
+    }
+
+    try {
+      res.json({ translations: await translateBatch(texts, target) });
+    } catch (error) {
+      console.error("Translation request failed:", error);
+      // Returning the originals keeps the board readable when the provider dies.
+      res.json({ translations: texts });
+    }
   });
 
   app.get("/api/questions", (req, res) => {
@@ -471,12 +621,25 @@ async function startServer() {
         });
       }
 
-      // Dynamic page numbers footer
+      // Dynamic page numbers footer.
+      //
+      // The footer sits at y=785, but with a 50pt bottom margin the writable
+      // area of an A4 page ends at y=792. An 8pt line is ~9.6pt tall, so
+      // PDFKit treated every footer as an overflow and appended a fresh page
+      // for it — turning a 9-page report into 9 content pages with no numbers
+      // followed by 9 near-blank pages carrying only the numbers. Dropping the
+      // bottom margin while stamping keeps the text on the page it belongs to.
       const range = doc.bufferedPageRange();
       for (let i = range.start; i < range.start + range.count; i++) {
         doc.switchToPage(i);
+
+        const bottomMargin = doc.page.margins.bottom;
+        doc.page.margins.bottom = 0;
+
         doc.fillColor("#9ca3af").font("Helvetica").fontSize(8);
         doc.text(`Página ${i + 1} de ${range.count}`, 50, 785, { align: "center", width: 495 });
+
+        doc.page.margins.bottom = bottomMargin;
       }
 
       doc.end();
@@ -505,8 +668,24 @@ async function startServer() {
     });
   }
 
-  const port = await listenWithFallback(app, preferredPort, HOST, clients);
-  logAvailableUrls(port);
+  // TLS material lives beside the database so a device that accepted the
+  // certificate keeps working across restarts.
+  const tls = isTlsEnabled() ? ensureCertificate(path.dirname(databaseFile)) : null;
+
+  if (tls) {
+    console.log(`[server] TLS enabled, certificate: ${tls.certPath}`);
+    if (tls.generated) {
+      console.log("[server] A new self-signed certificate was created. Browsers will");
+      console.log("[server] warn once per device; choose Advanced and proceed.");
+    }
+  } else {
+    console.warn("[server] WARNING: TLS is off (QA_TLS=off). The teacher password");
+    console.warn("[server] crosses the network in cleartext and can be read by anyone");
+    console.warn("[server] sniffing this Wi-Fi.");
+  }
+
+  const port = await listenWithFallback(app, preferredPort, HOST, tls);
+  logAvailableUrls(port, Boolean(tls));
 }
 
 startServer();
@@ -553,9 +732,17 @@ function calculateCardHeight(doc: any, q: Question): number {
   return height;
 }
 
-function listen(app: express.Express, port: number, host: string, sseClients?: Set<express.Response>) {
+interface TlsOptions {
+  key: string;
+  cert: string;
+}
+
+function listen(app: express.Express, port: number, host: string, tls: TlsOptions | null) {
   return new Promise<number>((resolve, reject) => {
-    const server = app.listen(port, host);
+    // One Express app, served over TLS or plain HTTP depending on configuration.
+    const server = tls
+      ? https.createServer({ key: tls.key, cert: tls.cert }, app)
+      : http.createServer(app);
 
     // Increase max listeners to support 100+ simultaneous SSE connections
     server.setMaxListeners(300);
@@ -571,15 +758,21 @@ function listen(app: express.Express, port: number, host: string, sseClients?: S
     });
 
     server.once("error", reject);
+    server.listen(port, host);
   });
 }
 
-async function listenWithFallback(app: express.Express, preferredPort: number, host: string, sseClients?: Set<express.Response>) {
+async function listenWithFallback(
+  app: express.Express,
+  preferredPort: number,
+  host: string,
+  tls: TlsOptions | null
+) {
   const ports = Array.from({ length: 20 }, (_, index) => preferredPort + index);
 
   for (const port of ports) {
     try {
-      return await listen(app, port, host, sseClients);
+      return await listen(app, port, host, tls);
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EADDRINUSE") {
         throw error;
@@ -592,18 +785,11 @@ async function listenWithFallback(app: express.Express, preferredPort: number, h
   throw new Error(`No available port found between ${preferredPort} and ${preferredPort + ports.length - 1}`);
 }
 
-function getLanAddresses() {
-  return Object.values(networkInterfaces())
-    .flat()
-    .filter((details): details is NonNullable<typeof details> => Boolean(details))
-    .filter(details => details.family === "IPv4" && !details.internal)
-    .map(details => details.address);
-}
-
-function logAvailableUrls(port: number) {
+function logAvailableUrls(port: number, secure: boolean) {
+  const scheme = secure ? "https" : "http";
   const urls = [
-    `Local:   http://localhost:${port}`,
-    ...getLanAddresses().map(address => `Network: http://${address}:${port}`)
+    `Local:   ${scheme}://localhost:${port}`,
+    ...getLanAddresses().map(address => `Network: ${scheme}://${address}:${port}`)
   ];
 
   console.log("Server running:");
